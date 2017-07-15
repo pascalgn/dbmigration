@@ -1,26 +1,11 @@
 package com.github.pascalgn.dbmigration
 
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.io.File
-import java.nio.file.Files
-import java.util.*
+import java.util.LinkedList
 
-class ExporterIT {
-    lateinit var directory: File
-
-    @BeforeEach
-    fun before() {
-        directory = Files.createTempDirectory("export-dir").toFile()
-    }
-
-    @AfterEach
-    fun after() {
-        directory.deleteRecursively()
-    }
-
+class ExporterIT : AbstractIT() {
     @Test
     fun runExport() {
         val pkg = "com/github/pascalgn/dbmigration"

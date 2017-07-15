@@ -12,7 +12,7 @@ import java.sql.DriverManager
 import java.sql.PreparedStatement
 import java.sql.Types
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Queue
 
 internal class Importer(val jdbc: Jdbc, val deleteBeforeImport: Boolean, val files: Queue<File>) : Runnable {
     companion object {
@@ -31,6 +31,10 @@ internal class Importer(val jdbc: Jdbc, val deleteBeforeImport: Boolean, val fil
                 }
             }
 
+            if (tableNames.isEmpty()) {
+                throw IllegalStateException("No tables found for schema: ${jdbc.schema}")
+            }
+
             while (true) {
                 val file = files.poll() ?: break
                 importFile(connection, tableNames, file)
@@ -42,11 +46,16 @@ internal class Importer(val jdbc: Jdbc, val deleteBeforeImport: Boolean, val fil
         file.inputStream().use { input ->
             val data = DataInputStream(input)
 
+            val version = data.readInt()
+            if (version != 1) {
+                throw IllegalStateException("Unexpected version: $version")
+            }
+
             val exportTableName = data.readUTF()
-            val tableName = tableNames.getOrElse(exportTableName, {
+            val tableName = tableNames.getOrElse(exportTableName.toUpperCase()) {
                 logger.warn("Table {} not found, skipping import!", exportTableName)
                 return
-            })
+            }
 
             if (deleteBeforeImport) {
                 deleteRows(connection, tableName)
@@ -107,7 +116,7 @@ internal class Importer(val jdbc: Jdbc, val deleteBeforeImport: Boolean, val fil
         logger.info("Imported: {}", file)
     }
 
-    private fun  deleteRows(connection: Connection, tableName: String) {
+    private fun deleteRows(connection: Connection, tableName: String) {
         connection.createStatement().use { statement ->
             val deleted = statement.executeUpdate("DELETE FROM ${jdbc.tableName(tableName)}")
             if (deleted > 0) {

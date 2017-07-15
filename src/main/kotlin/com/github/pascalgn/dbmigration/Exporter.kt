@@ -5,10 +5,13 @@ import java.io.DataOutputStream
 import java.io.File
 import java.io.InputStream
 import java.math.BigDecimal
-import java.sql.*
+import java.sql.Connection
 import java.sql.Date
+import java.sql.DriverManager
+import java.sql.ResultSet
+import java.sql.Types
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Queue
 
 internal class Exporter(val outputDir: File, val jdbc: Jdbc, val tables: Queue<Table>) : Runnable {
     companion object {
@@ -36,6 +39,9 @@ internal class Exporter(val outputDir: File, val jdbc: Jdbc, val tables: Queue<T
                 statement.executeQuery("SELECT * FROM ${jdbc.tableName(tableName)}").use { rs ->
                     file.outputStream().use { output ->
                         val data = DataOutputStream(output)
+
+                        // file format version:
+                        data.writeInt(1)
 
                         data.writeUTF(tableName)
 

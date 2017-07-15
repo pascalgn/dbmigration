@@ -6,6 +6,10 @@
     <groupId>com.github.pascalgn</groupId>
     <artifactId>dbmigration</artifactId>
     <version>0.0.1-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>dbmigration</name>
+    <description>A tool to migrate data from one SQL database to another</description>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -13,10 +17,16 @@
 
         <kotlin.version>1.1.2</kotlin.version>
         <slf4j.version>1.7.21</slf4j.version>
-        <maven-surefire-plugin.version>2.20</maven-surefire-plugin.version>
-        <maven-failsafe-plugin.version>2.20</maven-failsafe-plugin.version>
+
         <junit.jupiter.version>5.0.0-M5</junit.jupiter.version>
         <junit.platform.version>1.0.0-M5</junit.platform.version>
+
+        <maven-surefire-plugin.version>2.20</maven-surefire-plugin.version>
+        <maven-failsafe-plugin.version>2.20</maven-failsafe-plugin.version>
+        <maven-checkstyle-plugin.version>2.17</maven-checkstyle-plugin.version>
+        <maven-antrun-plugin.version>1.7</maven-antrun-plugin.version>
+
+        <ktlint.version>0.8.1</ktlint.version>
     </properties>
 
     <build>
@@ -71,6 +81,34 @@
                         <groupId>org.junit.platform</groupId>
                         <artifactId>junit-platform-surefire-provider</artifactId>
                         <version>${junit.platform.version}</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+            <plugin>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>${maven-antrun-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>ktlint</id>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <phase>verify</phase>
+                        <configuration>
+                            <target name="ktlint">
+                                <java taskname="ktlint" dir="${project.basedir}" fork="true" failonerror="true"
+                                      classname="com.github.shyiko.ktlint.Main" classpathref="maven.plugin.classpath">
+                                    <arg value="src/**/*.kt"/>
+                                </java>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+                <dependencies>
+                    <dependency>
+                        <groupId>com.github.shyiko</groupId>
+                        <artifactId>ktlint</artifactId>
+                        <version>${ktlint.version}</version>
                     </dependency>
                 </dependencies>
             </plugin>

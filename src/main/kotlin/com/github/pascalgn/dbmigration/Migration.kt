@@ -56,7 +56,7 @@ class Migration(val context: Context) : Runnable {
     }
 
     private fun exportData(outputDir: File) {
-        val jdbc = context.export.jdbc
+        val jdbc = context.source.jdbc
         val tables = ConcurrentLinkedQueue<Table>()
         DriverManager.getConnection(jdbc.url, jdbc.username, jdbc.password).use { connection ->
             val tableNames = mutableListOf<String>()
@@ -65,7 +65,7 @@ class Migration(val context: Context) : Runnable {
                     tableNames.add(rs.getString("TABLE_NAME"))
                 }
             }
-            tableNames.mapTo(tables) { Table(it, rowCount(connection, it)) }
+            tableNames.mapTo(tables) { Table(it, rowCount(connection, jdbc, it)) }
         }
 
         if (tables.isEmpty()) {
@@ -74,8 +74,8 @@ class Migration(val context: Context) : Runnable {
 
         logger.info("Exporting {} tables...", tables.size)
 
-        val threads = context.export.threads
-        val executorService = Executors.newFixedThreadPool(threads);
+        val threads = context.source.threads
+        val executorService = Executors.newFixedThreadPool(threads)
         for (i in 1..threads) {
             executorService.execute(Exporter(outputDir, jdbc, tables))
         }
@@ -84,8 +84,12 @@ class Migration(val context: Context) : Runnable {
     }
 
     private fun importData(inputDir: File) {
-        if (context.import.deleteBeforeImport) {
+        if (context.target.deleteBeforeImport) {
             logger.warn("Deleting existing rows before importing")
+        }
+
+        for (before in context.target.before) {
+            executeScript(context.target.jdbc, before)
         }
 
         val files = ConcurrentLinkedQueue<File>()
@@ -93,21 +97,39 @@ class Migration(val context: Context) : Runnable {
 
         logger.info("Importing {} files...", files.size)
 
-        val threads = context.import.threads
-        val executorService = Executors.newFixedThreadPool(threads);
+        val threads = context.target.threads
+        val executorService = Executors.newFixedThreadPool(threads)
         for (i in 1..threads) {
-            executorService.execute(Importer(context.import.jdbc, context.import.deleteBeforeImport, files))
+            executorService.execute(Importer(context.target.jdbc, context.target.deleteBeforeImport, files))
         }
         executorService.shutdown()
         executorService.awaitTermination(14, TimeUnit.DAYS)
+
+        for (after in context.target.after) {
+            executeScript(context.target.jdbc, after)
+        }
     }
 
-    private fun rowCount(connection: Connection, tableName: String): Long {
+    private fun executeScript(jdbc: Jdbc, filename: String) {
+        val file = File(context.root, filename)
+        if (!file.isFile) {
+            throw IllegalArgumentException("Not a file: $file")
+        }
+        DriverManager.getConnection(jdbc.url, jdbc.username, jdbc.password).use { connection ->
+            file.readText().split(";").forEach { sql ->
+                connection.createStatement().use { statement ->
+                    statement.execute(sql)
+                }
+            }
+        }
+    }
+
+    private fun rowCount(connection: Connection, jdbc: Jdbc, tableName: String): Long {
         connection.createStatement().use { statement ->
-            val sql = "SELECT COUNT(1) FROM \"$tableName\""
+            val sql = "SELECT COUNT(1) FROM ${jdbc.tableName(tableName)}"
             statement.executeQuery(sql).use { rs ->
                 if (rs.next()) {
-                    val count: Long = rs.getLong(1);
+                    val count: Long = rs.getLong(1)
                     if (rs.next()) {
                         throw IllegalStateException("Expected only one row: $sql")
                     }
