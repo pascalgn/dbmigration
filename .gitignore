@@ -1,0 +1,5 @@
+.*
+!.gitignore
+!.editorconfig
+*.iml
+target/
