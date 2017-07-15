@@ -6,6 +6,7 @@ import java.util.*
 class Main {
     companion object {
         private val DEFAULT_THREADS = "1"
+        private val DEFAULT_CONFIGURATION = "/com/github/pascalgn/dbmigration/migration-defaults.properties"
 
         @JvmStatic
         fun main(args: Array<String>) {
@@ -18,8 +19,21 @@ class Main {
                 throw IllegalStateException("Not a directory: $root")
             }
 
+            val configuration = File(root, "migration.properties")
+            if (!configuration.exists()) {
+                if (configuration.createNewFile()) {
+                    configuration.outputStream().use { out ->
+                        Main::class.java.getResourceAsStream(DEFAULT_CONFIGURATION).copyTo(out)
+                    }
+                }
+                throw IllegalStateException("No such file, created defaults: $configuration")
+            }
+
             val properties = Properties()
-            File(root, "migration.properties").reader(Charsets.ISO_8859_1).use { properties.load(it) }
+            configuration.reader(Charsets.ISO_8859_1).use { properties.load(it) }
+
+            val classpath = properties.getProperty("classpath", "").split(",").filter { it.isNotBlank() }
+            val drivers = properties.getProperty("drivers", "").split(",").filter { it.isNotBlank() }
 
             val inputThreads = properties.getProperty("input.threads", DEFAULT_THREADS).toInt()
 
@@ -37,7 +51,7 @@ class Main {
                 properties.getProperty("output.jdbc.schema"),
                 properties.getProperty("input.jdbc.quotes", "true").toBoolean())
 
-            Migration(Context(root, inputThreads, input, outputThreads, output)).run()
+            Migration(Context(root, classpath, drivers, inputThreads, input, outputThreads, output)).run()
         }
     }
 }

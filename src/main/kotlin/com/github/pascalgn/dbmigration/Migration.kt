@@ -2,6 +2,8 @@ package com.github.pascalgn.dbmigration
 
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.net.URL
+import java.net.URLClassLoader
 import java.sql.Connection
 import java.sql.DriverManager
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -19,8 +21,38 @@ class Migration(val context: Context) : Runnable {
             throw IllegalStateException("Not a directory: $exportDir")
         }
 
+        addClasspath()
+        loadDrivers()
+
         exportData(exportDir, context.input)
         importData(exportDir, context.output)
+    }
+
+    private fun addClasspath() {
+        if (context.classpath.isEmpty()) {
+            return
+        }
+        if (javaClass.classLoader !is URLClassLoader) {
+            throw IllegalStateException("Not an instance of URLClassLoader: ${javaClass.classLoader}")
+        }
+        val addURL = URLClassLoader::class.java.getDeclaredMethod("addURL", URL::class.java)
+        addURL.isAccessible = true
+        for (classpath in context.classpath) {
+            val file = File(classpath)
+            if (!file.exists()) {
+                throw IllegalArgumentException("File not found: $classpath")
+            }
+            val url = file.toURI().toURL()
+            addURL.invoke(javaClass.classLoader, url)
+            logger.info("Added classpath entry: {}", url)
+        }
+    }
+
+    private fun loadDrivers() {
+        for (driver in context.drivers) {
+            Class.forName(driver)
+            logger.info("Loaded driver: {}", driver)
+        }
     }
 
     private fun exportData(outputDir: File, jdbc: Jdbc) {
