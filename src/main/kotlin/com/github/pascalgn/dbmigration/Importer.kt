@@ -120,6 +120,7 @@ internal class Importer(val jdbc: Jdbc, val files: Queue<File>) : Runnable {
         } else {
             when (column.type) {
                 Types.NUMERIC, Types.DECIMAL, Types.FLOAT -> readBigDecimal(data, index, statement)
+                Types.SMALLINT, Types.BIGINT, Types.INTEGER -> readBigInteger(data, index, statement)
                 Types.VARCHAR -> readVarchar(data, index, statement)
                 Types.BLOB, Types.CLOB -> readBlob(data, index, statement)
                 Types.DATE -> readDate(data, false, index, statement)
@@ -135,6 +136,17 @@ internal class Importer(val jdbc: Jdbc, val files: Queue<File>) : Runnable {
         val bytes = ByteArray(size)
         data.readFully(bytes)
         statement.setBigDecimal(index, BigDecimal(BigInteger(bytes), scale))
+    }
+
+    private fun readBigInteger(data: DataInputStream, index: Int, statement: PreparedStatement) {
+        val scale = data.readInt()
+        if (scale != 0) {
+            throw IllegalStateException("Expected scale 0: $scale")
+        }
+        val size = data.readInt()
+        val bytes = ByteArray(size)
+        data.readFully(bytes)
+        statement.setBigDecimal(index, BigDecimal(BigInteger(bytes), 0))
     }
 
     private fun readVarchar(data: DataInputStream, index: Int, statement: PreparedStatement) {

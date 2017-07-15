@@ -33,7 +33,8 @@ internal class Exporter(val outputDir: File, val jdbc: Jdbc, val tables: Queue<T
             logger.info("Exporting {}", tableName)
             connection.createStatement().use { statement ->
                 statement.fetchSize = FETCH_SIZE
-                statement.executeQuery("SELECT * FROM \"$tableName\"").use { rs ->
+                val tn = if (jdbc.quotes) "\"$tableName\"" else tableName
+                statement.executeQuery("SELECT * FROM $tn").use { rs ->
                     file.outputStream().use { output ->
                         val data = DataOutputStream(output)
 
@@ -86,6 +87,7 @@ internal class Exporter(val outputDir: File, val jdbc: Jdbc, val tables: Queue<T
     private fun write(rs: ResultSet, index: Int, column: Column, data: DataOutputStream) {
         when (column.type) {
             Types.NUMERIC, Types.DECIMAL, Types.FLOAT -> write(rs.getBigDecimal(index), rs.wasNull(), data)
+            Types.SMALLINT, Types.BIGINT, Types.INTEGER -> write(rs.getBigDecimal(index), rs.wasNull(), data)
             Types.VARCHAR -> write(rs.getString(index), rs.wasNull(), data)
             Types.BLOB, Types.CLOB -> write(rs.getBinaryStream(index), rs.wasNull(), data)
             Types.DATE -> write(rs.getDate(index), rs.wasNull(), false, data)
