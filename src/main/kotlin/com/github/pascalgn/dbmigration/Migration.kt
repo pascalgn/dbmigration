@@ -20,6 +20,7 @@ class Migration(val context: Context) : Runnable {
         }
 
         exportData(exportDir, context.input)
+        importData(exportDir, context.output)
     }
 
     private fun exportData(outputDir: File, jdbc: Jdbc) {
@@ -44,6 +45,21 @@ class Migration(val context: Context) : Runnable {
         val executorService = Executors.newFixedThreadPool(threads);
         for (i in 1..threads) {
             executorService.execute(Exporter(outputDir, jdbc, tables))
+        }
+        executorService.shutdown()
+        executorService.awaitTermination(14, TimeUnit.DAYS)
+    }
+
+    private fun importData(inputDir: File, jdbc: Jdbc) {
+        val files = ConcurrentLinkedQueue<File>()
+        inputDir.listFiles().forEach { files.add(it) }
+
+        logger.info("Importing {} files...", files.size)
+
+        val threads = context.outputThreads
+        val executorService = Executors.newFixedThreadPool(threads);
+        for (i in 1..threads) {
+            executorService.execute(Importer(jdbc, files))
         }
         executorService.shutdown()
         executorService.awaitTermination(14, TimeUnit.DAYS)

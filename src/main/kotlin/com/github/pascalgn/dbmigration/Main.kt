@@ -28,7 +28,14 @@ class Main {
                 properties.getProperty("input.jdbc.password"),
                 properties.getProperty("input.jdbc.schema"))
 
-            Migration(Context(root, inputThreads, input)).run()
+            val outputThreads = properties.getProperty("output.threads", DEFAULT_THREADS).toInt()
+
+            val output = Jdbc(properties.getProperty("output.jdbc.url"),
+                properties.getProperty("output.jdbc.username"),
+                properties.getProperty("output.jdbc.password"),
+                properties.getProperty("output.jdbc.schema"))
+
+            Migration(Context(root, inputThreads, input, outputThreads, output)).run()
         }
     }
 }
