@@ -1,3 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    Copyright 2017 Pascal
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -10,6 +28,29 @@
 
     <name>dbmigration</name>
     <description>A tool to migrate data from one SQL database to another</description>
+    <url>https://github.com/pascalgn/dbmigration</url>
+
+    <licenses>
+        <license>
+            <name>The Apache Software License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>Pascal</name>
+            <email>pascalgn@users.noreply.github.com</email>
+            <organizationUrl>https://github.com/pascalgn</organizationUrl>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:https://github.com/pascalgn/dbmigration.git</connection>
+        <developerConnection>scm:git:ssh://github.com:pascalgn/dbmigration.git</developerConnection>
+        <url>https://github.com/pascalgn/dbmigration</url>
+    </scm>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -25,6 +66,7 @@
         <maven-failsafe-plugin.version>2.20</maven-failsafe-plugin.version>
         <maven-checkstyle-plugin.version>2.17</maven-checkstyle-plugin.version>
         <maven-antrun-plugin.version>1.7</maven-antrun-plugin.version>
+        <license-maven-plugin.version>3.0</license-maven-plugin.version>
 
         <ktlint.version>0.8.1</ktlint.version>
     </properties>
@@ -89,14 +131,14 @@
                 <version>${maven-antrun-plugin.version}</version>
                 <executions>
                     <execution>
-                        <id>ktlint</id>
+                        <id>kotlin-lint</id>
                         <goals>
                             <goal>run</goal>
                         </goals>
                         <phase>verify</phase>
                         <configuration>
-                            <target name="ktlint">
-                                <java taskname="ktlint" dir="${project.basedir}" fork="true" failonerror="true"
+                            <target name="kotlin-lint">
+                                <java taskname="kotlin-lint" dir="${project.basedir}" fork="true" failonerror="true"
                                       classname="com.github.shyiko.ktlint.Main" classpathref="maven.plugin.classpath">
                                     <arg value="src/**/*.kt"/>
                                 </java>
@@ -111,6 +153,34 @@
                         <version>${ktlint.version}</version>
                     </dependency>
                 </dependencies>
+            </plugin>
+            <plugin>
+                <groupId>com.mycila</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <version>${license-maven-plugin.version}</version>
+                <configuration>
+                    <header>${project.basedir}/header.txt</header>
+                    <strictCheck>true</strictCheck>
+                    <failIfUnknown>true</failIfUnknown>
+                    <mapping>
+                        <kt>SLASHSTAR_STYLE</kt>
+                    </mapping>
+                    <excludes>
+                        <exclude>.*</exclude>
+                        <exclude>LICENSE</exclude>
+                        <exclude>src/main/resources/**/*.properties</exclude>
+                        <exclude>src/test/resources/**</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>check-licenses</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
