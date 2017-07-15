@@ -14,7 +14,7 @@ import java.sql.Types
 import java.text.SimpleDateFormat
 import java.util.*
 
-internal class Importer(val jdbc: Jdbc, val files: Queue<File>) : Runnable {
+internal class Importer(val jdbc: Jdbc, val deleteBeforeImport: Boolean, val files: Queue<File>) : Runnable {
     companion object {
         val logger = LoggerFactory.getLogger(Importer::class.java)!!
 
@@ -48,7 +48,9 @@ internal class Importer(val jdbc: Jdbc, val files: Queue<File>) : Runnable {
                 return
             })
 
-            if (!isEmpty(connection, tableName)) {
+            if (deleteBeforeImport) {
+                deleteRows(connection, tableName)
+            } else if (!isEmpty(connection, tableName)) {
                 logger.warn("Table {} not empty, skipping import!", tableName)
                 return
             }
@@ -64,9 +66,9 @@ internal class Importer(val jdbc: Jdbc, val files: Queue<File>) : Runnable {
             }
 
             val str = StringBuilder()
-            str.append("INSERT INTO \"")
-            str.append(tableName)
-            str.append("\" (")
+            str.append("INSERT INTO ")
+            str.append(jdbc.tableName(tableName))
+            str.append(" (")
             for (idx in 1..columnCount) {
                 val column = columns[idx]!!
                 if (idx > 1) {
@@ -105,9 +107,18 @@ internal class Importer(val jdbc: Jdbc, val files: Queue<File>) : Runnable {
         logger.info("Imported: {}", file)
     }
 
+    private fun  deleteRows(connection: Connection, tableName: String) {
+        connection.createStatement().use { statement ->
+            val deleted = statement.executeUpdate("DELETE FROM ${jdbc.tableName(tableName)}")
+            if (deleted > 0) {
+                logger.info("Deleted {} row(s) from {}", deleted, tableName)
+            }
+        }
+    }
+
     private fun isEmpty(connection: Connection, tableName: String): Boolean {
         connection.createStatement().use { statement ->
-            statement.executeQuery("SELECT 1 FROM \"$tableName\"").use { rs ->
+            statement.executeQuery("SELECT 1 FROM ${jdbc.tableName(tableName)}").use { rs ->
                 return !rs.next()
             }
         }

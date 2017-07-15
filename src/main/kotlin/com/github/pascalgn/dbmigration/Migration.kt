@@ -24,8 +24,8 @@ class Migration(val context: Context) : Runnable {
         addClasspath()
         loadDrivers()
 
-        exportData(exportDir, context.input)
-        importData(exportDir, context.output)
+        exportData(exportDir)
+        importData(exportDir)
     }
 
     private fun addClasspath() {
@@ -55,7 +55,8 @@ class Migration(val context: Context) : Runnable {
         }
     }
 
-    private fun exportData(outputDir: File, jdbc: Jdbc) {
+    private fun exportData(outputDir: File) {
+        val jdbc = context.export.jdbc
         val tables = ConcurrentLinkedQueue<Table>()
         DriverManager.getConnection(jdbc.url, jdbc.username, jdbc.password).use { connection ->
             val tableNames = mutableListOf<String>()
@@ -73,7 +74,7 @@ class Migration(val context: Context) : Runnable {
 
         logger.info("Exporting {} tables...", tables.size)
 
-        val threads = context.inputThreads
+        val threads = context.export.threads
         val executorService = Executors.newFixedThreadPool(threads);
         for (i in 1..threads) {
             executorService.execute(Exporter(outputDir, jdbc, tables))
@@ -82,16 +83,20 @@ class Migration(val context: Context) : Runnable {
         executorService.awaitTermination(14, TimeUnit.DAYS)
     }
 
-    private fun importData(inputDir: File, jdbc: Jdbc) {
+    private fun importData(inputDir: File) {
+        if (context.import.deleteBeforeImport) {
+            logger.warn("Deleting existing rows before importing")
+        }
+
         val files = ConcurrentLinkedQueue<File>()
         inputDir.listFiles().forEach { files.add(it) }
 
         logger.info("Importing {} files...", files.size)
 
-        val threads = context.outputThreads
+        val threads = context.import.threads
         val executorService = Executors.newFixedThreadPool(threads);
         for (i in 1..threads) {
-            executorService.execute(Importer(jdbc, files))
+            executorService.execute(Importer(context.import.jdbc, context.import.deleteBeforeImport, files))
         }
         executorService.shutdown()
         executorService.awaitTermination(14, TimeUnit.DAYS)

@@ -33,8 +33,7 @@ internal class Exporter(val outputDir: File, val jdbc: Jdbc, val tables: Queue<T
             logger.info("Exporting {}", tableName)
             connection.createStatement().use { statement ->
                 statement.fetchSize = FETCH_SIZE
-                val tn = if (jdbc.quotes) "\"$tableName\"" else tableName
-                statement.executeQuery("SELECT * FROM $tn").use { rs ->
+                statement.executeQuery("SELECT * FROM ${jdbc.tableName(tableName)}").use { rs ->
                     file.outputStream().use { output ->
                         val data = DataOutputStream(output)
 

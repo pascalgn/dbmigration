@@ -35,23 +35,24 @@ class Main {
             val classpath = properties.getProperty("classpath", "").split(",").filter { it.isNotBlank() }
             val drivers = properties.getProperty("drivers", "").split(",").filter { it.isNotBlank() }
 
-            val inputThreads = properties.getProperty("input.threads", DEFAULT_THREADS).toInt()
+            val exportThreads = properties.getProperty("export.threads", DEFAULT_THREADS).toInt()
+            val exportJdbc = Jdbc(properties.getProperty("export.jdbc.url"),
+                properties.getProperty("export.jdbc.username"),
+                properties.getProperty("export.jdbc.password"),
+                properties.getProperty("export.jdbc.schema"),
+                properties.getProperty("export.jdbc.quotes", "true").toBoolean())
+            val export = Export(exportThreads, exportJdbc)
 
-            val input = Jdbc(properties.getProperty("input.jdbc.url"),
-                properties.getProperty("input.jdbc.username"),
-                properties.getProperty("input.jdbc.password"),
-                properties.getProperty("input.jdbc.schema"),
-                properties.getProperty("input.jdbc.quotes", "true").toBoolean())
+            val importThreads = properties.getProperty("import.threads", DEFAULT_THREADS).toInt()
+            val deleteBeforeImport = properties.getProperty("import.deleteBeforeImport", "false").toBoolean()
+            val importJdbc = Jdbc(properties.getProperty("import.jdbc.url"),
+                properties.getProperty("import.jdbc.username"),
+                properties.getProperty("import.jdbc.password"),
+                properties.getProperty("import.jdbc.schema"),
+                properties.getProperty("import.jdbc.quotes", "true").toBoolean())
+            val import = Import(importThreads, deleteBeforeImport, importJdbc)
 
-            val outputThreads = properties.getProperty("output.threads", DEFAULT_THREADS).toInt()
-
-            val output = Jdbc(properties.getProperty("output.jdbc.url"),
-                properties.getProperty("output.jdbc.username"),
-                properties.getProperty("output.jdbc.password"),
-                properties.getProperty("output.jdbc.schema"),
-                properties.getProperty("input.jdbc.quotes", "true").toBoolean())
-
-            Migration(Context(root, classpath, drivers, inputThreads, input, outputThreads, output)).run()
+            Migration(Context(root, classpath, drivers, export, import)).run()
         }
     }
 }
