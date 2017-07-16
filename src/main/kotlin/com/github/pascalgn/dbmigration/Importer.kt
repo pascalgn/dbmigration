@@ -17,14 +17,17 @@
 package com.github.pascalgn.dbmigration
 
 import org.slf4j.LoggerFactory
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.InputStream
 import java.sql.Connection
 import java.sql.DriverManager
+import java.sql.Types
 import java.util.Queue
 
 internal class Importer(val jdbc: Jdbc, val batchSize: Int,
-                        val deleteBeforeImport: Boolean, val files: Queue<File>) : Runnable {
+                        val deleteBeforeImport: Boolean, val files: Queue<File>,
+                        val importSuccessful: (File) -> Unit) : Runnable {
     companion object {
         val logger = LoggerFactory.getLogger(Importer::class.java)!!
     }
@@ -49,7 +52,13 @@ internal class Importer(val jdbc: Jdbc, val batchSize: Int,
 
             while (true) {
                 val file = files.poll() ?: break
-                importFile(connection, tableNames, file)
+                try {
+                    importFile(connection, tableNames, file)
+                } catch(e: InterruptedException) {
+                    throw e
+                } catch(e: Exception) {
+                    throw IllegalStateException("Error importing $file", e)
+                }
             }
         }
     }
@@ -109,22 +118,32 @@ internal class Importer(val jdbc: Jdbc, val batchSize: Int,
             connection.prepareStatement(str.toString()).use { statement ->
                 var added = 0
                 while (reader.nextRow()) {
+                    logger.trace("Next row:")
                     reader.readRow { sourceIdx, value ->
                         val targetIdx = mapping.getOrDefault(sourceIdx, -1)
                         if (targetIdx != -1) {
-                            if (value is InputStream) {
-                                statement.setBlob(targetIdx, value)
-                            } else {
-                                statement.setObject(targetIdx, value)
+                            logger.trace("{}: {}", targetIdx, value)
+                            val column = targetColumns[targetIdx]!!
+                            when (column.type) {
+                                Types.BLOB, Types.CLOB, Types.VARBINARY -> {
+                                    if (value is InputStream) {
+                                        statement.setBinaryStream(targetIdx, value, value.available())
+                                    } else {
+                                        statement.setBinaryStream(targetIdx, null as InputStream?, 0)
+                                    }
+                                }
+                                else ->
+                                    statement.setObject(targetIdx, value)
                             }
                         }
                     }
                     if (batchSize == 0) {
-                        statement.executeUpdate()
+                        statement.execute()
                         statement.clearParameters()
                         ++added
                     } else {
                         statement.addBatch()
+                        statement.clearParameters()
                         ++added
                         if (added >= batchSize) {
                             logger.debug("Executing batch: {} rows [{}]", added, tableName)
@@ -147,6 +166,7 @@ internal class Importer(val jdbc: Jdbc, val batchSize: Int,
                 }
             }
         }
+        importSuccessful(file)
         logger.info("Imported: {}", file)
     }
 

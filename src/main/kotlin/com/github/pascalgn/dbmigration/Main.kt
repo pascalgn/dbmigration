@@ -25,7 +25,7 @@ object Main {
     @JvmStatic
     fun main(args: Array<String>) {
         if (args.size != 1) {
-            throw IllegalArgumentException("usage: (migrate <directory> | csv <file>)")
+            throw IllegalArgumentException("usage: main <directory>")
         }
 
         val root = File(args[0])

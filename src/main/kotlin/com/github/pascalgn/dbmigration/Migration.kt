@@ -134,12 +134,38 @@ class Migration(val context: Context) : Runnable {
         }
 
         val files = ConcurrentLinkedQueue<File>()
-        inputDir.listFiles().filter { it.isFile }.forEach { files.add(it) }
+        inputDir.listFiles({ _, name -> name.endsWith(".bin") }).filter { it.isFile }.forEach { files.add(it) }
 
-        logger.info("Importing {} files...", files.size)
+        logger.debug("Found {} files", files.size)
 
-        execute(context.target.threads) {
-            Importer(context.target.jdbc, context.target.batchSize, context.target.deleteBeforeImport, files).run()
+        if (files.isEmpty()) {
+            logger.warn("No files found!")
+            return
+        }
+
+        val imported = File(context.root, "imported.txt")
+        if (imported.isFile) {
+            imported.readLines().forEach { filename ->
+                logger.info("Already imported: {}", filename)
+                files.remove(File(inputDir, filename))
+            }
+        }
+
+        val importSuccessful = { file: File ->
+            synchronized(imported) {
+                imported.appendText(file.name + System.lineSeparator())
+            }
+        }
+
+        if (files.isEmpty()) {
+            logger.info("All files already imported!")
+            return
+        } else {
+            logger.info("Importing {} files...", files.size)
+            execute(context.target.threads) {
+                Importer(context.target.jdbc, context.target.batchSize, context.target.deleteBeforeImport,
+                        files, importSuccessful).run()
+            }
         }
 
         for (after in context.target.after) {
@@ -147,13 +173,13 @@ class Migration(val context: Context) : Runnable {
         }
     }
 
-    private inline fun execute(threads: Int, crossinline block: () -> Any) {
+    private inline fun execute(threads: Int, crossinline block: () -> Unit) {
         var errors = false
         val executorService = Executors.newFixedThreadPool(threads)
         for (i in 1..threads) {
             executorService.submit {
                 try {
-                    block.invoke()
+                    block()
                 } catch (interruptedException: InterruptedException) {
                     logger.debug("Interrupted!")
                 } catch (throwable: Throwable) {
