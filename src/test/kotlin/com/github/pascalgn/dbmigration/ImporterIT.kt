@@ -36,7 +36,7 @@ class ImporterIT : AbstractIT() {
         }
         val files = LinkedList<File>(listOf(user))
 
-        Importer(jdbc, true, files).run()
+        Importer(jdbc, 10000, true, files).run()
 
         select("jdbc:h2:mem:test", "SELECT * FROM USER") { rs ->
             assertTrue(rs.next())

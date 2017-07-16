@@ -46,13 +46,13 @@ class MigrationIT : AbstractIT() {
 
     private fun createContext(): Context {
         val sourceJdbc = Jdbc(sourceJdbcUrl, "", "", "", false)
-        val source = Source(1, listOf("USERGROUP"), sourceJdbc)
+        val source = Source(false, 1, listOf("USERGROUP"), sourceJdbc)
 
         copyToDirectory("before.sql")
         copyToDirectory("after.sql")
 
         val targetJdbc = Jdbc(targetJdbcUrl, "", "", "", false)
-        val target = Target(1, true, listOf("before.sql"), listOf("after.sql"), targetJdbc)
+        val target = Target(false, 1, true, listOf("before.sql"), listOf("after.sql"), 10000, targetJdbc)
 
         val context = Context(directory, emptyList(), emptyList(), source, target)
         return context

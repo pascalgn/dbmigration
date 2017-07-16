@@ -29,6 +29,7 @@ data class Context(val root: File,
             val classpath = properties.getProperty("classpath", "").split(",").filter { it.isNotBlank() }
             val drivers = properties.getProperty("drivers", "").split(",").filter { it.isNotBlank() }
 
+            val sourceSkip = properties.getProperty("source.skip", "false").toBoolean()
             val sourceThreads = properties.getProperty("source.threads", DEFAULT_THREADS).toInt()
             val sourceExclude = properties.getProperty("source.exclude", "").split(",").filter { it.isNotBlank() }
             val sourceJdbc = Jdbc(properties.getProperty("source.jdbc.url"),
@@ -36,18 +37,20 @@ data class Context(val root: File,
                 properties.getProperty("source.jdbc.password"),
                 properties.getProperty("source.jdbc.schema"),
                 properties.getProperty("source.jdbc.quotes", "true").toBoolean())
-            val source = Source(sourceThreads, sourceExclude, sourceJdbc)
+            val source = Source(sourceSkip, sourceThreads, sourceExclude, sourceJdbc)
 
+            val targetSkip = properties.getProperty("target.skip", "false").toBoolean()
             val targetThreads = properties.getProperty("target.threads", DEFAULT_THREADS).toInt()
             val deleteBeforeImport = properties.getProperty("target.deleteBeforeImport", "false").toBoolean()
             val before = properties.getProperty("target.before", "").split(",").filter { it.isNotBlank() }
             val after = properties.getProperty("target.after", "").split(",").filter { it.isNotBlank() }
+            val batchSize = properties.getProperty("target.batchSize", "10000").toInt()
             val targetJdbc = Jdbc(properties.getProperty("target.jdbc.url"),
                 properties.getProperty("target.jdbc.username"),
                 properties.getProperty("target.jdbc.password"),
                 properties.getProperty("target.jdbc.schema"),
                 properties.getProperty("target.jdbc.quotes", "true").toBoolean())
-            val target = Target(targetThreads, deleteBeforeImport, before, after, targetJdbc)
+            val target = Target(targetSkip, targetThreads, deleteBeforeImport, before, after, batchSize, targetJdbc)
 
             return Context(root, classpath, drivers, source, target)
         }

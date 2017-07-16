@@ -17,28 +17,24 @@
 package com.github.pascalgn.dbmigration
 
 import org.slf4j.LoggerFactory
-import java.io.ByteArrayInputStream
-import java.io.DataInputStream
 import java.io.File
-import java.math.BigDecimal
-import java.math.BigInteger
+import java.io.InputStream
 import java.sql.Connection
-import java.sql.Date
 import java.sql.DriverManager
-import java.sql.PreparedStatement
-import java.sql.Types
-import java.text.SimpleDateFormat
 import java.util.Queue
 
-internal class Importer(val jdbc: Jdbc, val deleteBeforeImport: Boolean, val files: Queue<File>) : Runnable {
+internal class Importer(val jdbc: Jdbc, val batchSize: Int,
+                        val deleteBeforeImport: Boolean, val files: Queue<File>) : Runnable {
     companion object {
         val logger = LoggerFactory.getLogger(Importer::class.java)!!
-
-        val BATCH_SIZE = 10000
     }
 
     override fun run() {
         DriverManager.getConnection(jdbc.url, jdbc.username, jdbc.password).use { connection ->
+            if (!connection.autoCommit) {
+                connection.autoCommit = true
+            }
+
             val tableNames = mutableMapOf<String, String>()
             connection.metaData.getTables(null, jdbc.schema, "%", null).use { rs ->
                 while (rs.next()) {
@@ -60,14 +56,9 @@ internal class Importer(val jdbc: Jdbc, val deleteBeforeImport: Boolean, val fil
 
     private fun importFile(connection: Connection, tableNames: Map<String, String>, file: File) {
         file.inputStream().use { input ->
-            val data = DataInputStream(input)
+            val reader = Reader(input)
 
-            val version = data.readInt()
-            if (version != 1) {
-                throw IllegalStateException("Unexpected version: $version")
-            }
-
-            val exportTableName = data.readUTF()
+            val exportTableName = reader.readTableName()
             val tableName = tableNames.getOrElse(exportTableName.toUpperCase()) {
                 logger.warn("Table {} not found, skipping import!", exportTableName)
                 return
@@ -82,54 +73,94 @@ internal class Importer(val jdbc: Jdbc, val deleteBeforeImport: Boolean, val fil
 
             logger.info("Importing {}", tableName)
 
-            val columns = mutableMapOf<Int, Column>()
-            val columnCount = data.readInt()
-            for (idx in 1..columnCount) {
-                val type = data.readInt()
-                val name = data.readUTF()
-                columns.put(idx, Column(type, name))
+            val sourceColumns = reader.readColumns()
+            val targetColumns = getColumns(connection, tableName)
+
+            val mapping = mutableMapOf<Int, Int>()
+            for ((targetIdx, targetColumn) in targetColumns) {
+                for ((sourceIdx, sourceColumn) in sourceColumns) {
+                    if (sourceColumn.name.toUpperCase() == targetColumn.name.toUpperCase()) {
+                        mapping.put(sourceIdx, targetIdx)
+                        break
+                    }
+                }
+                if (!mapping.containsValue(targetIdx)) {
+                    throw IllegalStateException("Missing source column for target $targetColumn")
+                }
             }
 
             val str = StringBuilder()
             str.append("INSERT INTO ")
             str.append(jdbc.tableName(tableName))
             str.append(" (")
-            for (idx in 1..columnCount) {
-                val column = columns[idx]!!
-                if (idx > 1) {
+            for (column in targetColumns.values) {
+                if (!str.endsWith("(")) {
                     str.append(",")
                 }
                 str.append(column.name)
             }
             str.append(") VALUES (")
             str.append("?")
-            str.append(",?".repeat(columnCount - 1))
+            str.append(",?".repeat(targetColumns.size - 1))
             str.append(")")
+
+            logger.debug("Prepared statement: $str")
 
             connection.prepareStatement(str.toString()).use { statement ->
                 var added = 0
-                while (true) {
-                    val prefix = data.read()
-                    if (prefix == 0) {
-                        break
+                while (reader.nextRow()) {
+                    reader.readRow { sourceIdx, value ->
+                        val targetIdx = mapping.getOrDefault(sourceIdx, -1)
+                        if (targetIdx != -1) {
+                            if (value is InputStream) {
+                                statement.setBlob(targetIdx, value)
+                            } else {
+                                statement.setObject(targetIdx, value)
+                            }
+                        }
                     }
-                    for (idx in 1..columnCount) {
-                        read(data, idx, columns[idx]!!, statement)
-                    }
-                    statement.addBatch()
-                    ++added
-                    if (added >= BATCH_SIZE) {
-                        statement.executeBatch()
+                    if (batchSize == 0) {
+                        statement.executeUpdate()
                         statement.clearParameters()
-                        added = 0
+                        ++added
+                    } else {
+                        statement.addBatch()
+                        ++added
+                        if (added >= batchSize) {
+                            logger.debug("Executing batch: {} rows [{}]", added, tableName)
+                            statement.executeBatch()
+                            statement.clearBatch()
+                            logger.debug("Batch executed [{}]", tableName)
+                            added = 0
+                        }
+                    }
+                    if (added % 100 == 0 && Thread.interrupted()) {
+                        Thread.currentThread().interrupt()
+                        throw InterruptedException()
                     }
                 }
-                if (added > 0) {
+                if (batchSize != 0 && added > 0) {
+                    logger.debug("Executing batch: {} rows [{}]", added, tableName)
                     statement.executeBatch()
+                    statement.clearBatch()
+                    logger.debug("Batch executed [{}]", tableName)
                 }
             }
         }
         logger.info("Imported: {}", file)
+    }
+
+    private fun getColumns(connection: Connection, tableName: String): Map<Int, Column> {
+        val columns = mutableMapOf<Int, Column>()
+        var idx = 0
+        connection.metaData.getColumns(null, jdbc.schema, tableName, "%").use { rs ->
+            while (rs.next()) {
+                val type = rs.getInt("DATA_TYPE")
+                val name = rs.getString("COLUMN_NAME")
+                columns.put(++idx, Column(type, name))
+            }
+        }
+        return columns
     }
 
     private fun deleteRows(connection: Connection, tableName: String) {
@@ -147,58 +178,5 @@ internal class Importer(val jdbc: Jdbc, val deleteBeforeImport: Boolean, val fil
                 return !rs.next()
             }
         }
-    }
-
-    private fun read(data: DataInputStream, index: Int, column: Column, statement: PreparedStatement) {
-        val prefix = data.read()
-        if (prefix == 0) {
-            statement.setNull(index, column.type)
-        } else {
-            when (column.type) {
-                Types.NUMERIC, Types.DECIMAL, Types.FLOAT -> readBigDecimal(data, index, statement)
-                Types.SMALLINT, Types.BIGINT, Types.INTEGER -> readBigInteger(data, index, statement)
-                Types.VARCHAR -> readVarchar(data, index, statement)
-                Types.BLOB, Types.CLOB -> readBlob(data, index, statement)
-                Types.DATE -> readDate(data, false, index, statement)
-                Types.TIMESTAMP -> readDate(data, true, index, statement)
-                else -> throw IllegalArgumentException("Unknown column type: $column")
-            }
-        }
-    }
-
-    private fun readBigDecimal(data: DataInputStream, index: Int, statement: PreparedStatement) {
-        val scale = data.readInt()
-        val size = data.readInt()
-        val bytes = ByteArray(size)
-        data.readFully(bytes)
-        statement.setBigDecimal(index, BigDecimal(BigInteger(bytes), scale))
-    }
-
-    private fun readBigInteger(data: DataInputStream, index: Int, statement: PreparedStatement) {
-        val scale = data.readInt()
-        if (scale != 0) {
-            throw IllegalStateException("Expected scale 0: $scale")
-        }
-        val size = data.readInt()
-        val bytes = ByteArray(size)
-        data.readFully(bytes)
-        statement.setBigDecimal(index, BigDecimal(BigInteger(bytes), 0))
-    }
-
-    private fun readVarchar(data: DataInputStream, index: Int, statement: PreparedStatement) {
-        statement.setString(index, data.readUTF())
-    }
-
-    private fun readBlob(data: DataInputStream, index: Int, statement: PreparedStatement) {
-        val size = data.readInt()
-        val bytes = ByteArray(size)
-        data.readFully(bytes)
-        statement.setBlob(index, ByteArrayInputStream(bytes))
-    }
-
-    private fun readDate(data: DataInputStream, withTime: Boolean, index: Int, statement: PreparedStatement) {
-        val format = if (withTime) "yyyy-MM-dd'T'HH:mm:ssZ" else "yyyy-MM-ddZ"
-        val date = SimpleDateFormat(format).parse(data.readUTF())
-        statement.setDate(index, Date(date.time))
     }
 }

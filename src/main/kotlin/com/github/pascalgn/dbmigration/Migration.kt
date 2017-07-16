@@ -41,8 +41,19 @@ class Migration(val context: Context) : Runnable {
         addClasspath()
         loadDrivers()
 
-        exportData(exportDir)
-        importData(exportDir)
+        if (context.source.skip) {
+            logger.info("Export will be skipped")
+        } else {
+            exportData(exportDir)
+        }
+
+        if (context.target.skip) {
+            logger.info("Import will be skipped")
+        } else {
+            importData(exportDir)
+        }
+
+        logger.info("Migration finished successfully")
     }
 
     private fun addClasspath() {
@@ -93,13 +104,9 @@ class Migration(val context: Context) : Runnable {
 
         logger.info("Exporting {} tables...", tables.size)
 
-        val threads = context.source.threads
-        val executorService = Executors.newFixedThreadPool(threads)
-        for (i in 1..threads) {
-            executorService.execute(Exporter(outputDir, context.source.jdbc, tables))
+        execute(context.source.threads) {
+            Exporter(outputDir, context.source.jdbc, tables).run()
         }
-        executorService.shutdown()
-        executorService.awaitTermination(14, TimeUnit.DAYS)
     }
 
     private fun getTables(): Queue<Table> {
@@ -127,20 +134,39 @@ class Migration(val context: Context) : Runnable {
         }
 
         val files = ConcurrentLinkedQueue<File>()
-        inputDir.listFiles().forEach { files.add(it) }
+        inputDir.listFiles().filter { it.isFile }.forEach { files.add(it) }
 
         logger.info("Importing {} files...", files.size)
 
-        val threads = context.target.threads
-        val executorService = Executors.newFixedThreadPool(threads)
-        for (i in 1..threads) {
-            executorService.execute(Importer(context.target.jdbc, context.target.deleteBeforeImport, files))
+        execute(context.target.threads) {
+            Importer(context.target.jdbc, context.target.batchSize, context.target.deleteBeforeImport, files).run()
         }
-        executorService.shutdown()
-        executorService.awaitTermination(14, TimeUnit.DAYS)
 
         for (after in context.target.after) {
             executeScript(context.target.jdbc, after)
+        }
+    }
+
+    private inline fun execute(threads: Int, crossinline block: () -> Any) {
+        var errors = false
+        val executorService = Executors.newFixedThreadPool(threads)
+        for (i in 1..threads) {
+            executorService.submit {
+                try {
+                    block.invoke()
+                } catch (interruptedException: InterruptedException) {
+                    logger.debug("Interrupted!")
+                } catch (throwable: Throwable) {
+                    errors = true
+                    logger.error("Error while executing!", throwable)
+                    executorService.shutdownNow()
+                }
+            }
+        }
+        executorService.shutdown()
+        executorService.awaitTermination(14, TimeUnit.DAYS)
+        if (errors) {
+            throw IllegalStateException("Error while executing tasks!")
         }
     }
 
@@ -149,6 +175,7 @@ class Migration(val context: Context) : Runnable {
         if (!file.isFile) {
             throw IllegalArgumentException("Not a file: $file")
         }
+        logger.info("Executing script: {}", file)
         DriverManager.getConnection(jdbc.url, jdbc.username, jdbc.password).use { connection ->
             file.readText().split(";").forEach { sql ->
                 connection.createStatement().use { statement ->
