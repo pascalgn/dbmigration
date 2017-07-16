@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.github.pascalgn.dbmigration
+package com.github.pascalgn.dbmigration.config
 
 import java.io.File
 import java.util.Properties

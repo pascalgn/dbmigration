@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-package com.github.pascalgn.dbmigration
+package com.github.pascalgn.dbmigration.io
 
+import com.github.pascalgn.dbmigration.sql.Column
 import java.io.ByteArrayInputStream
 import java.io.DataInputStream
 import java.io.InputStream
@@ -26,16 +27,17 @@ import java.sql.Types
 import java.text.SimpleDateFormat
 import java.util.TreeMap
 
-internal class Reader(input: InputStream) {
+internal class BinaryReader(input: InputStream) : AutoCloseable {
     private val data = DataInputStream(input)
+
+    private var version = 0
     private val columns = TreeMap<Int, Column>()
 
     fun readTableName(): String {
-        val version = data.readInt()
-        if (version != 1) {
+        version = data.readInt()
+        if (version != 1 && version != 2) {
             throw IllegalStateException("Unexpected version: $version")
         }
-
         return data.readUTF()
     }
 
@@ -52,10 +54,27 @@ internal class Reader(input: InputStream) {
 
     fun nextRow(): Boolean {
         val prefix = data.read()
-        return (prefix == 1)
+        if (version == 1) {
+            when (prefix) {
+                1 -> return true
+                0 -> return false
+            }
+        } else {
+            when (prefix) {
+                1 -> return true
+                -1 -> return false
+            }
+        }
+        throw IllegalStateException("Unexpected row prefix: $prefix")
     }
 
-    inline fun readRow(block: (Int, Any?) -> Any) {
+    fun readRow(): Array<Any?> {
+        val row = Array<Any?>(columns.size, { null })
+        readRow { index, value -> row[index - 1] = value }
+        return row
+    }
+
+    inline fun readRow(block: (Int, Any?) -> Unit) {
         for (idx in 1..columns.size) {
             val prefix = data.read()
             if (prefix == 0) {
@@ -64,7 +83,8 @@ internal class Reader(input: InputStream) {
                 val column = columns[idx]!!
                 when (column.type) {
                     Types.NUMERIC, Types.DECIMAL, Types.FLOAT -> block.invoke(idx, readBigDecimal())
-                    Types.SMALLINT, Types.BIGINT, Types.INTEGER -> block.invoke(idx, readBigInteger())
+                    Types.TINYINT, Types.SMALLINT, Types.INTEGER -> block.invoke(idx, readInteger())
+                    Types.BIGINT -> block.invoke(idx, readBigInteger())
                     Types.VARCHAR -> block.invoke(idx, data.readUTF())
                     Types.BLOB, Types.CLOB -> block.invoke(idx, readBlob())
                     Types.DATE -> block.invoke(idx, readDate(false))
@@ -81,6 +101,14 @@ internal class Reader(input: InputStream) {
         val bytes = ByteArray(size)
         data.readFully(bytes)
         return BigDecimal(BigInteger(bytes), scale)
+    }
+
+    private fun readInteger(): Int {
+        if (version == 1) {
+            return readBigInteger().intValueExact()
+        } else {
+            return data.readInt()
+        }
     }
 
     private fun readBigInteger(): BigDecimal {
@@ -105,5 +133,9 @@ internal class Reader(input: InputStream) {
         val format = if (withTime) "yyyy-MM-dd'T'HH:mm:ssZ" else "yyyy-MM-ddZ"
         val date = SimpleDateFormat(format).parse(data.readUTF())
         return Date(date.time)
+    }
+
+    override fun close() {
+        data.close()
     }
 }

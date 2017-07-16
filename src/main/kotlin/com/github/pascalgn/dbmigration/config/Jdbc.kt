@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
-package com.github.pascalgn.dbmigration
+package com.github.pascalgn.dbmigration.config
 
-internal data class Column(val type: Int, val name: String)
+data class Jdbc(val url: String, val username: String, val password: String, val schema: String, val quotes: Boolean) {
+    fun tableName(tableName: String): String {
+        return if (quotes) "\"$tableName\"" else tableName
+    }
+}

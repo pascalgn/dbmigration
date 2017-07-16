@@ -56,16 +56,16 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
+        <skipITs>false</skipITs>
+
         <kotlin.version>1.1.2</kotlin.version>
         <slf4j.version>1.7.21</slf4j.version>
-
-        <junit.jupiter.version>5.0.0-M5</junit.jupiter.version>
-        <junit.platform.version>1.0.0-M5</junit.platform.version>
 
         <maven-surefire-plugin.version>2.20</maven-surefire-plugin.version>
         <maven-failsafe-plugin.version>2.20</maven-failsafe-plugin.version>
         <maven-checkstyle-plugin.version>2.17</maven-checkstyle-plugin.version>
         <maven-antrun-plugin.version>1.7</maven-antrun-plugin.version>
+        <docker-maven-plugin.version>0.21.0</docker-maven-plugin.version>
         <license-maven-plugin.version>3.0</license-maven-plugin.version>
 
         <ktlint.version>0.8.1</ktlint.version>
@@ -100,13 +100,6 @@
             <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven-surefire-plugin.version}</version>
-                <dependencies>
-                    <dependency>
-                        <groupId>org.junit.platform</groupId>
-                        <artifactId>junit-platform-surefire-provider</artifactId>
-                        <version>${junit.platform.version}</version>
-                    </dependency>
-                </dependencies>
             </plugin>
             <plugin>
                 <artifactId>maven-failsafe-plugin</artifactId>
@@ -118,13 +111,57 @@
                         </goals>
                     </execution>
                 </executions>
-                <dependencies>
-                    <dependency>
-                        <groupId>org.junit.platform</groupId>
-                        <artifactId>junit-platform-surefire-provider</artifactId>
-                        <version>${junit.platform.version}</version>
-                    </dependency>
-                </dependencies>
+                <configuration>
+                    <systemPropertiesFile>${project.build.directory}/ports.properties</systemPropertiesFile>
+                    <trimStackTrace>false</trimStackTrace>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>io.fabric8</groupId>
+                <artifactId>docker-maven-plugin</artifactId>
+                <version>${docker-maven-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>build-images</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>build</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>start-container</id>
+                        <goals>
+                            <goal>start</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>stop-container</id>
+                        <goals>
+                            <goal>stop</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <skip>${skipITs}</skip>
+                    <images>
+                        <image>
+                            <name>dbmigration/sql-server:latest</name>
+                            <build>
+                                <dockerFileDir>${project.basedir}/src/test/docker</dockerFileDir>
+                            </build>
+                            <run>
+                                <portPropertyFile>${project.build.directory}/ports.properties</portPropertyFile>
+                                <ports>
+                                    <port>+sqlserver.host:sqlserver.port:1433</port>
+                                </ports>
+                                <wait>
+                                    <log>Recovery is complete</log>
+                                    <time>30000</time>
+                                </wait>
+                            </run>
+                        </image>
+                    </images>
+                </configuration>
             </plugin>
             <plugin>
                 <artifactId>maven-antrun-plugin</artifactId>
@@ -170,6 +207,7 @@
                         <exclude>LICENSE</exclude>
                         <exclude>src/main/resources/**/*.properties</exclude>
                         <exclude>src/test/resources/**</exclude>
+                        <exclude>src/test/docker/*</exclude>
                     </excludes>
                 </configuration>
                 <executions>
@@ -204,21 +242,16 @@
         </dependency>
 
         <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
-            <version>${junit.jupiter.version}</version>
-            <scope>test</scope>
+            <groupId>com.microsoft.sqlserver</groupId>
+            <artifactId>mssql-jdbc</artifactId>
+            <version>6.1.0.jre8</version>
+            <optional>true</optional>
         </dependency>
+
         <dependency>
-            <groupId>org.junit.platform</groupId>
-            <artifactId>junit-platform-runner</artifactId>
-            <version>${junit.platform.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-engine</artifactId>
-            <version>${junit.jupiter.version}</version>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.12</version>
             <scope>test</scope>
         </dependency>
 

@@ -16,6 +16,7 @@
 
 package com.github.pascalgn.dbmigration
 
+import com.github.pascalgn.dbmigration.io.BinaryReader
 import java.io.File
 
 object Tool {
@@ -26,7 +27,7 @@ object Tool {
         }
 
         File(args[1]).inputStream().use { input ->
-            val reader = Reader(input)
+            val reader = BinaryReader(input)
 
             val tableName = reader.readTableName()
             println("; Table: $tableName")

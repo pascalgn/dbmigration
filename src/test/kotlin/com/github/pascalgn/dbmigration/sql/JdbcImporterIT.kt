@@ -14,29 +14,30 @@
  * limitations under the License.
  */
 
-package com.github.pascalgn.dbmigration
+package com.github.pascalgn.dbmigration.sql
 
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Test
-import java.io.File
-import java.util.LinkedList
+import com.github.pascalgn.dbmigration.AbstractIT
+import com.github.pascalgn.dbmigration.config.Jdbc
+import com.github.pascalgn.dbmigration.io.BinaryReader
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
 
-class ImporterIT : AbstractIT() {
+class JdbcImporterIT : AbstractIT() {
     @Test
     fun runImport() {
-        val pkg = "com/github/pascalgn/dbmigration"
-        val jdbcUrl = "jdbc:h2:mem:test;DB_CLOSE_DELAY=10;INIT=RUNSCRIPT FROM 'classpath:$pkg/runImport.sql'"
+        val jdbcUrl = "jdbc:h2:mem:test;DB_CLOSE_DELAY=10;INIT=RUNSCRIPT FROM 'classpath:$PKG/runImport.sql'"
         val jdbc = Jdbc(jdbcUrl, "", "", "", false)
 
-        val user = File(directory, "User.bin")
-        user.outputStream().use {
-            javaClass.getResourceAsStream("/$pkg/User.bin").copyTo(it)
+        openResource("User-v2.bin") { input ->
+            BinaryReader(input).use { reader ->
+                val tableName = reader.readTableName()
+                Session(jdbc).use { session ->
+                    JdbcImporter(reader, session, tableName.toUpperCase(), 10000).run()
+                }
+            }
         }
-        val files = LinkedList<File>(listOf(user))
-
-        Importer(jdbc, 10000, true, files, {}).run()
 
         select("jdbc:h2:mem:test", "SELECT * FROM USER") { rs ->
             assertTrue(rs.next())

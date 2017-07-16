@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-package com.github.pascalgn.dbmigration
+package com.github.pascalgn.dbmigration.config
 
-data class Jdbc(val url: String, val username: String, val password: String, val schema: String, val quotes: Boolean) {
-    fun tableName(tableName: String): String {
-        return if (quotes) "\"$tableName\"" else tableName
-    }
-}
+data class Source(val skip: Boolean, val threads: Int, val exclude: List<String>, val jdbc: Jdbc)

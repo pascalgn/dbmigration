@@ -14,25 +14,26 @@
  * limitations under the License.
  */
 
-package com.github.pascalgn.dbmigration
+package com.github.pascalgn.dbmigration.sql
 
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Test
+import com.github.pascalgn.dbmigration.AbstractIT
+import com.github.pascalgn.dbmigration.config.Jdbc
+import org.junit.Assert.assertEquals
+import org.junit.Test
 import java.io.File
 import java.util.LinkedList
 
 class ExporterIT : AbstractIT() {
     @Test
     fun runExport() {
-        val pkg = "com/github/pascalgn/dbmigration"
-        val jdbcUrl = "jdbc:h2:mem:test;INIT=RUNSCRIPT FROM 'classpath:$pkg/runExport.sql'"
+        val jdbcUrl = "jdbc:h2:mem:test;INIT=RUNSCRIPT FROM 'classpath:$PKG/runExport.sql'"
         val jdbc = Jdbc(jdbcUrl, "", "", "", false)
         val tables = LinkedList<Table>(listOf(Table("User", 1L)))
 
         Exporter(directory, jdbc, tables).run()
 
         assertEquals(1, directory.list().size)
-        val userExpected = javaClass.getResource("/$pkg/User.bin").readBytes()
+        val userExpected = openResource("User-v2.bin") { it.readBytes() }
         val userActual = File(directory, "User.bin").readBytes()
         assertEquals(userExpected.toList(), userActual.toList())
     }

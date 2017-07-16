@@ -14,6 +14,6 @@
  * limitations under the License.
  */
 
-package com.github.pascalgn.dbmigration
+package com.github.pascalgn.dbmigration.sql
 
 internal data class Table(val name: String, val rows: Long)

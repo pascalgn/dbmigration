@@ -16,12 +16,19 @@
 
 package com.github.pascalgn.dbmigration
 
+import com.github.pascalgn.dbmigration.config.Context
+import com.github.pascalgn.dbmigration.io.BinaryReader
+import com.github.pascalgn.dbmigration.sql.Exporter
+import com.github.pascalgn.dbmigration.sql.JdbcImporter
+import com.github.pascalgn.dbmigration.sql.Session
+import com.github.pascalgn.dbmigration.sql.SqlServerImporter
+import com.github.pascalgn.dbmigration.sql.Table
+import com.github.pascalgn.dbmigration.sql.Utils
 import org.slf4j.LoggerFactory
+import sun.net.www.content.text.plain
 import java.io.File
 import java.net.URL
 import java.net.URLClassLoader
-import java.sql.Connection
-import java.sql.DriverManager
 import java.util.Queue
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.Executors
@@ -50,7 +57,9 @@ class Migration(val context: Context) : Runnable {
         if (context.target.skip) {
             logger.info("Import will be skipped")
         } else {
-            importData(exportDir)
+            Session(context.target.jdbc).use {
+                importData(exportDir, it)
+            }
         }
 
         logger.info("Migration finished successfully")
@@ -110,31 +119,33 @@ class Migration(val context: Context) : Runnable {
     }
 
     private fun getTables(): Queue<Table> {
-        val jdbc = context.source.jdbc
-        val tables = ConcurrentLinkedQueue<Table>()
-        DriverManager.getConnection(jdbc.url, jdbc.username, jdbc.password).use { connection ->
-            val tableNames = mutableListOf<String>()
-            connection.metaData.getTables(null, jdbc.schema, "%", null).use { rs ->
-                while (rs.next()) {
-                    tableNames.add(rs.getString("TABLE_NAME"))
+        logger.info("Reading tables...")
+        Session(context.source.jdbc).use { session ->
+            val tables = ConcurrentLinkedQueue<Table>()
+            session.withConnection { connection ->
+                val tableNames = mutableListOf<String>()
+                connection.metaData.getTables(null, session.schema, "%", null).use { rs ->
+                    while (rs.next()) {
+                        tableNames.add(rs.getString("TABLE_NAME"))
+                    }
                 }
+                tableNames.mapTo(tables) { Table(it, Utils.rowCount(session, connection, it)) }
             }
-            tableNames.mapTo(tables) { Table(it, rowCount(connection, jdbc, it)) }
+            return tables
         }
-        return tables
     }
 
-    private fun importData(inputDir: File) {
+    private fun importData(inputDir: File, session: Session) {
         if (context.target.deleteBeforeImport) {
             logger.warn("Deleting existing rows before importing")
         }
 
         for (before in context.target.before) {
-            executeScript(context.target.jdbc, before)
+            executeScript(session, before)
         }
 
         val files = ConcurrentLinkedQueue<File>()
-        inputDir.listFiles({ _, name -> name.endsWith(".bin") }).filter { it.isFile }.forEach { files.add(it) }
+        inputDir.listFiles().filter { it.isFile && it.name.endsWith(".bin") }.forEach { files.add(it) }
 
         logger.debug("Found {} files", files.size)
 
@@ -157,19 +168,65 @@ class Migration(val context: Context) : Runnable {
             }
         }
 
+        val tableNames = mutableMapOf<String, String>()
+        session.withConnection { connection ->
+            connection.metaData.getTables(null, session.schema, "%", null).use { rs ->
+                while (rs.next()) {
+                    val tableName = rs.getString("TABLE_NAME")
+                    tableNames.put(tableName.toUpperCase(), tableName)
+                }
+            }
+        }
+
         if (files.isEmpty()) {
             logger.info("All files already imported!")
             return
         } else {
+            if (tableNames.isEmpty()) {
+                throw IllegalStateException("No tables found for schema: ${session.schema}")
+            }
+
             logger.info("Importing {} files...", files.size)
             execute(context.target.threads) {
-                Importer(context.target.jdbc, context.target.batchSize, context.target.deleteBeforeImport,
-                        files, importSuccessful).run()
+                while (true) {
+                    session.withConnection { connection ->
+                        val file = files.poll() ?: return@execute
+
+                        BinaryReader(file.inputStream()).use { reader ->
+                            val exportTableName = reader.readTableName()
+                            val tableName = tableNames.getOrElse(exportTableName.toUpperCase()) {
+                                logger.warn("Table {} not found, skipping import!", exportTableName)
+                                return@use
+                            }
+
+                            try {
+                                if (context.target.deleteBeforeImport) {
+                                    Utils.deleteRows(session, connection, tableName)
+                                } else if (!Utils.isEmpty(session, connection, tableName)) {
+                                    logger.warn("Table {} not empty, skipping import!", tableName)
+                                    return@use
+                                }
+
+                                if (session.isSqlServer()) {
+                                    SqlServerImporter(reader, session, tableName).run()
+                                } else {
+                                    JdbcImporter(reader, session, tableName, context.target.batchSize).run()
+                                }
+                            } catch (e: InterruptedException) {
+                                throw e
+                            } catch (e: Exception) {
+                                throw IllegalStateException("Error importing $file", e)
+                            }
+
+                            importSuccessful(file)
+                        }
+                    }
+                }
             }
         }
 
         for (after in context.target.after) {
-            executeScript(context.target.jdbc, after)
+            executeScript(session, after)
         }
     }
 
@@ -192,37 +249,27 @@ class Migration(val context: Context) : Runnable {
         executorService.shutdown()
         executorService.awaitTermination(14, TimeUnit.DAYS)
         if (errors) {
-            throw IllegalStateException("Error while executing tasks!")
+            throw IllegalStateException("Errors while executing tasks!")
         }
     }
 
-    private fun executeScript(jdbc: Jdbc, filename: String) {
+    private fun executeScript(session: Session, filename: String) {
         val file = File(context.root, filename)
         if (!file.isFile) {
             throw IllegalArgumentException("Not a file: $file")
         }
         logger.info("Executing script: {}", file)
-        DriverManager.getConnection(jdbc.url, jdbc.username, jdbc.password).use { connection ->
-            file.readText().split(";").forEach { sql ->
-                connection.createStatement().use { statement ->
-                    statement.execute(sql)
-                }
-            }
-        }
-    }
-
-    private fun rowCount(connection: Connection, jdbc: Jdbc, tableName: String): Long {
-        connection.createStatement().use { statement ->
-            val sql = "SELECT COUNT(1) FROM ${jdbc.tableName(tableName)}"
-            statement.executeQuery(sql).use { rs ->
-                if (rs.next()) {
-                    val count: Long = rs.getLong(1)
-                    if (rs.next()) {
-                        throw IllegalStateException("Expected only one row: $sql")
+        session.withConnection { connection ->
+            connection.createStatement().use { statement ->
+                file.readText().split(";").forEach { sql ->
+                    if (sql.isBlank()) {
+                        return@forEach
                     }
-                    return count
-                } else {
-                    throw IllegalStateException("No results: $sql")
+                    if (logger.isDebugEnabled) {
+                        val plain = sql.replace(Regex("\\s+"), " ").trim()
+                        logger.debug("Executing SQL: {}", plain)
+                    }
+                    statement.execute(sql)
                 }
             }
         }

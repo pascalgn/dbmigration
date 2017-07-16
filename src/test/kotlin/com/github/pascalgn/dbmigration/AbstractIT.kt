@@ -16,27 +16,41 @@
 
 package com.github.pascalgn.dbmigration
 
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
+import org.junit.After
+import org.junit.Before
 import java.io.File
+import java.io.InputStream
 import java.nio.file.Files
 import java.sql.DriverManager
 import java.sql.ResultSet
 
 abstract class AbstractIT {
+    companion object {
+        val PKG = "com/github/pascalgn/dbmigration"
+    }
+
     protected lateinit var directory: File
 
-    @BeforeEach
+    @Before
     fun before() {
         directory = Files.createTempDirectory("root").toFile()
     }
 
-    @AfterEach
+    @After
     fun after() {
         directory.deleteRecursively()
     }
 
-    fun <T> select(url: String, sql: String, block: (ResultSet) -> T): T {
+    inline fun <T> openResource(name: String, block: (InputStream) -> T): T {
+        val stream = javaClass.getResourceAsStream("$PKG/$name")
+            ?: javaClass.getResourceAsStream("/$PKG/$name")
+            ?: Thread.currentThread().contextClassLoader.getResourceAsStream("$PKG/$name")
+            ?: Thread.currentThread().contextClassLoader.getResourceAsStream("/$PKG/$name")
+            ?: throw IllegalArgumentException("Resource not found: $name")
+        return stream.use(block)
+    }
+
+    inline fun <T> select(url: String, sql: String, block: (ResultSet) -> T): T {
         DriverManager.getConnection(url, "", "").use { connection ->
             connection.createStatement().use { statement ->
                 statement.executeQuery(sql).use { rs ->

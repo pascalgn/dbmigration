@@ -16,6 +16,7 @@
 
 package com.github.pascalgn.dbmigration
 
+import com.github.pascalgn.dbmigration.config.Context
 import java.io.File
 import java.util.Properties
 

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
-package com.github.pascalgn.dbmigration
+package com.github.pascalgn.dbmigration.config
 
-data class Source(val skip: Boolean, val threads: Int, val exclude: List<String>, val jdbc: Jdbc)
+data class Target(val skip: Boolean, val threads: Int, val deleteBeforeImport: Boolean,
+                  val before: List<String>, val after: List<String>, val batchSize: Int,
+                  val jdbc: Jdbc)
