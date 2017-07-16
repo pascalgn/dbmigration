@@ -29,26 +29,27 @@ data class Context(val root: File,
             val classpath = properties.getProperty("classpath", "").split(",").filter { it.isNotBlank() }
             val drivers = properties.getProperty("drivers", "").split(",").filter { it.isNotBlank() }
 
-            val exportThreads = properties.getProperty("source.threads", DEFAULT_THREADS).toInt()
-            val exportJdbc = Jdbc(properties.getProperty("source.jdbc.url"),
+            val sourceThreads = properties.getProperty("source.threads", DEFAULT_THREADS).toInt()
+            val sourceExclude = properties.getProperty("source.exclude", "").split(",").filter { it.isNotBlank() }
+            val sourceJdbc = Jdbc(properties.getProperty("source.jdbc.url"),
                 properties.getProperty("source.jdbc.username"),
                 properties.getProperty("source.jdbc.password"),
                 properties.getProperty("source.jdbc.schema"),
                 properties.getProperty("source.jdbc.quotes", "true").toBoolean())
-            val export = Source(exportThreads, exportJdbc)
+            val source = Source(sourceThreads, sourceExclude, sourceJdbc)
 
-            val importThreads = properties.getProperty("target.threads", DEFAULT_THREADS).toInt()
+            val targetThreads = properties.getProperty("target.threads", DEFAULT_THREADS).toInt()
             val deleteBeforeImport = properties.getProperty("target.deleteBeforeImport", "false").toBoolean()
             val before = properties.getProperty("target.before", "").split(",").filter { it.isNotBlank() }
             val after = properties.getProperty("target.after", "").split(",").filter { it.isNotBlank() }
-            val importJdbc = Jdbc(properties.getProperty("target.jdbc.url"),
+            val targetJdbc = Jdbc(properties.getProperty("target.jdbc.url"),
                 properties.getProperty("target.jdbc.username"),
                 properties.getProperty("target.jdbc.password"),
                 properties.getProperty("target.jdbc.schema"),
                 properties.getProperty("target.jdbc.quotes", "true").toBoolean())
-            val import = Target(importThreads, deleteBeforeImport, before, after, importJdbc)
+            val target = Target(targetThreads, deleteBeforeImport, before, after, targetJdbc)
 
-            return Context(root, classpath, drivers, export, import)
+            return Context(root, classpath, drivers, source, target)
         }
     }
 }

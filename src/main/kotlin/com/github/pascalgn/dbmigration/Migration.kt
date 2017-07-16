@@ -22,6 +22,7 @@ import java.net.URL
 import java.net.URLClassLoader
 import java.sql.Connection
 import java.sql.DriverManager
+import java.util.Queue
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -72,6 +73,36 @@ class Migration(val context: Context) : Runnable {
     }
 
     private fun exportData(outputDir: File) {
+        val tables = getTables()
+
+        if (tables.isEmpty()) {
+            throw IllegalStateException("No tables found!")
+        }
+
+        val it = tables.iterator()
+        while (it.hasNext()) {
+            val table = it.next()
+            if (context.source.exclude.contains(table.name)) {
+                it.remove()
+            }
+        }
+
+        if (tables.isEmpty()) {
+            throw IllegalStateException("All tables excluded!")
+        }
+
+        logger.info("Exporting {} tables...", tables.size)
+
+        val threads = context.source.threads
+        val executorService = Executors.newFixedThreadPool(threads)
+        for (i in 1..threads) {
+            executorService.execute(Exporter(outputDir, context.source.jdbc, tables))
+        }
+        executorService.shutdown()
+        executorService.awaitTermination(14, TimeUnit.DAYS)
+    }
+
+    private fun getTables(): Queue<Table> {
         val jdbc = context.source.jdbc
         val tables = ConcurrentLinkedQueue<Table>()
         DriverManager.getConnection(jdbc.url, jdbc.username, jdbc.password).use { connection ->
@@ -83,20 +114,7 @@ class Migration(val context: Context) : Runnable {
             }
             tableNames.mapTo(tables) { Table(it, rowCount(connection, jdbc, it)) }
         }
-
-        if (tables.isEmpty()) {
-            throw IllegalStateException("No tables found!")
-        }
-
-        logger.info("Exporting {} tables...", tables.size)
-
-        val threads = context.source.threads
-        val executorService = Executors.newFixedThreadPool(threads)
-        for (i in 1..threads) {
-            executorService.execute(Exporter(outputDir, jdbc, tables))
-        }
-        executorService.shutdown()
-        executorService.awaitTermination(14, TimeUnit.DAYS)
+        return tables
     }
 
     private fun importData(inputDir: File) {

@@ -7,3 +7,11 @@ CREATE TABLE IF NOT EXISTS `User` (
 );
 
 MERGE INTO User(id, name) VALUES (1, 'user1');
+
+CREATE TABLE IF NOT EXISTS `UserGroup` (
+  `id` int(11) NOT NULL,
+  `name` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+);
+
+MERGE INTO `UserGroup`(id, name) VALUES (1, 'group1');
