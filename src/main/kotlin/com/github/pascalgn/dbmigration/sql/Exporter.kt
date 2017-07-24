@@ -26,7 +26,8 @@ import java.sql.ResultSet
 import java.sql.Types
 import java.util.Queue
 
-internal class Exporter(val outputDir: File, val jdbc: Jdbc, val tables: Queue<Table>) : Runnable {
+internal class Exporter(private val outputDir: File, private val jdbc: Jdbc,
+                        private val tables: Queue<Table>) : Runnable {
     companion object {
         val logger = LoggerFactory.getLogger(Exporter::class.java)!!
 

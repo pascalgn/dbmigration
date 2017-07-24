@@ -25,7 +25,8 @@ import java.math.MathContext
 import java.math.RoundingMode
 import java.sql.Types
 
-internal class SqlServerImporter(val reader: BinaryReader, val session: Session, val tableName: String) : Runnable {
+internal class SqlServerImporter(private val reader: BinaryReader, private val session: Session,
+                                 private val tableName: String) : Runnable {
     companion object {
         private val logger = LoggerFactory.getLogger(SqlServerImporter::class.java)!!
     }

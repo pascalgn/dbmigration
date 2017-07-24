@@ -22,8 +22,8 @@ import java.io.InputStream
 import java.sql.Connection
 import java.sql.Types
 
-internal class JdbcImporter(val reader: BinaryReader, val session: Session,
-                            val tableName: String, val batchSize: Int) : Runnable {
+internal class JdbcImporter(private val reader: BinaryReader, private val session: Session,
+                            private val tableName: String, private val batchSize: Int) : Runnable {
     companion object {
         val logger = LoggerFactory.getLogger(JdbcImporter::class.java)!!
     }

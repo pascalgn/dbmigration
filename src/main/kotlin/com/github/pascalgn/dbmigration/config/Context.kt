@@ -50,7 +50,9 @@ data class Context(val root: File,
                 properties.getProperty("target.jdbc.password"),
                 properties.getProperty("target.jdbc.schema"),
                 properties.getProperty("target.jdbc.quotes", "true").toBoolean())
-            val target = Target(targetSkip, targetThreads, deleteBeforeImport, before, after, batchSize, targetJdbc)
+            val resetSequences = properties.getProperty("target.resetSequences", "").trim()
+            val target = Target(targetSkip, targetThreads, deleteBeforeImport, before, after, batchSize, targetJdbc,
+                resetSequences)
 
             return Context(root, classpath, drivers, source, target)
         }

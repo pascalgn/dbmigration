@@ -34,27 +34,24 @@ class SqlServerImporterIT : AbstractIT() {
 
         val url = "jdbc:sqlserver://$host:$port;database=dbmigration"
         val jdbc = Jdbc(url, "dbmigration", "dbmigration", "dbmigration", true)
-        val session = Session(jdbc)
 
-        openResource("beforeSqlServer.sql") { input ->
-            val sql = input.bufferedReader().use { it.readText() }
-            session.withConnection { connection ->
-                connection.createStatement().use { statement ->
-                    statement.execute(sql)
+        Session(jdbc).use { session ->
+            openResource("beforeSqlServer.sql") { input ->
+                val sql = input.bufferedReader().use { it.readText() }
+                session.withConnection { connection ->
+                    connection.createStatement().use { statement ->
+                        statement.execute(sql)
+                    }
                 }
             }
-        }
 
-        openResource("User-v2.bin") { input ->
-            BinaryReader(input).use { reader ->
-                val tableName = reader.readTableName()
-                Session(jdbc).use { session ->
+            openResource("User-v2.bin") { input ->
+                BinaryReader(input).use { reader ->
+                    val tableName = reader.readTableName()
                     SqlServerImporter(reader, session, tableName).run()
                 }
             }
-        }
 
-        Session(jdbc).use { session ->
             session.withConnection { connection ->
                 connection.createStatement().use { statement ->
                     statement.executeQuery("SELECT * FROM [User]").use { rs ->

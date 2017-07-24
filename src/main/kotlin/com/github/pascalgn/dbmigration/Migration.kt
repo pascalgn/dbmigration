@@ -18,8 +18,10 @@ package com.github.pascalgn.dbmigration
 
 import com.github.pascalgn.dbmigration.config.Context
 import com.github.pascalgn.dbmigration.io.BinaryReader
+import com.github.pascalgn.dbmigration.io.CsvReader
 import com.github.pascalgn.dbmigration.sql.Exporter
 import com.github.pascalgn.dbmigration.sql.JdbcImporter
+import com.github.pascalgn.dbmigration.sql.SequenceReset
 import com.github.pascalgn.dbmigration.sql.Session
 import com.github.pascalgn.dbmigration.sql.SqlServerImporter
 import com.github.pascalgn.dbmigration.sql.Table
@@ -227,6 +229,16 @@ class Migration(val context: Context) : Runnable {
 
         for (after in context.target.after) {
             executeScript(session, after)
+        }
+
+        if (context.target.resetSequences.isNotBlank()) {
+            val file = File(context.root, context.target.resetSequences)
+            if (!file.isFile) {
+                throw IllegalArgumentException("Not a file: $file")
+            }
+            file.inputStream().use { input ->
+                SequenceReset(CsvReader(input), session).run()
+            }
         }
     }
 

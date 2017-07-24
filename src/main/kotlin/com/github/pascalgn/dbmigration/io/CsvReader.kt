@@ -14,8 +14,25 @@
  * limitations under the License.
  */
 
-package com.github.pascalgn.dbmigration.config
+package com.github.pascalgn.dbmigration.io
 
-data class Target(val skip: Boolean, val threads: Int, val deleteBeforeImport: Boolean,
-                  val before: List<String>, val after: List<String>, val batchSize: Int,
-                  val jdbc: Jdbc, val resetSequences: String)
+import java.io.InputStream
+
+internal class CsvReader(input: InputStream) : AutoCloseable {
+    private val reader = input.bufferedReader()
+
+    private var headerSkipped = false
+
+    fun readLine(): List<String>? {
+        if (!headerSkipped) {
+            reader.readLine()
+            headerSkipped = true
+        }
+        val line = reader.readLine() ?: return null
+        return line.split(",")
+    }
+
+    override fun close() {
+        reader.close()
+    }
+}
