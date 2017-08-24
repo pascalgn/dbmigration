@@ -34,6 +34,9 @@ internal class BinaryReader(input: InputStream) : AutoCloseable {
     private val columns = TreeMap<Int, Column>()
 
     fun readTableName(): String {
+        if (version != 0) {
+            throw IllegalStateException("Cannot call readTableName() more than once!")
+        }
         version = data.readInt()
         if (version != 1 && version != 2) {
             throw IllegalStateException("Unexpected version: $version")
@@ -42,6 +45,9 @@ internal class BinaryReader(input: InputStream) : AutoCloseable {
     }
 
     fun readColumns(): Map<Int, Column> {
+        if (version == 0) {
+            throw IllegalStateException("Must call readTableName() first!")
+        }
         columns.clear()
         val columnCount = data.readInt()
         for (idx in 1..columnCount) {
@@ -68,12 +74,6 @@ internal class BinaryReader(input: InputStream) : AutoCloseable {
         throw IllegalStateException("Unexpected row prefix: $prefix")
     }
 
-    fun readRow(): Array<Any?> {
-        val row = Array<Any?>(columns.size, { null })
-        readRow { index, value -> row[index - 1] = value }
-        return row
-    }
-
     inline fun readRow(block: (Int, Any?) -> Unit) {
         for (idx in 1..columns.size) {
             val prefix = data.read()
@@ -86,7 +86,7 @@ internal class BinaryReader(input: InputStream) : AutoCloseable {
                     Types.TINYINT, Types.SMALLINT, Types.INTEGER -> block.invoke(idx, readInteger())
                     Types.BIGINT -> block.invoke(idx, readBigInteger())
                     Types.VARCHAR -> block.invoke(idx, data.readUTF())
-                    Types.BLOB, Types.CLOB -> block.invoke(idx, readBlob())
+                    Types.BLOB, Types.CLOB, Types.VARBINARY -> block.invoke(idx, readBlob())
                     Types.DATE -> block.invoke(idx, readDate(false))
                     Types.TIMESTAMP -> block.invoke(idx, readDate(true))
                     else -> throw IllegalArgumentException("Unknown column type: $column")

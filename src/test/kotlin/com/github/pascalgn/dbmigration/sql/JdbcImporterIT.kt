@@ -32,9 +32,8 @@ class JdbcImporterIT : AbstractIT() {
 
         openResource("User-v2.bin") { input ->
             BinaryReader(input).use { reader ->
-                val tableName = reader.readTableName()
                 Session(jdbc).use { session ->
-                    JdbcImporter(reader, session, tableName.toUpperCase(), 10000).run()
+                    JdbcImporter(reader, session, "USER", 10000).run()
                 }
             }
         }

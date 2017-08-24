@@ -16,32 +16,43 @@
 
 package com.github.pascalgn.dbmigration.io
 
-import com.github.pascalgn.dbmigration.AbstractIT
+import com.github.pascalgn.dbmigration.AbstractTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
+import java.io.InputStream
+import java.sql.Types
 
-class BinaryReaderTest : AbstractIT() {
+class BinaryReaderTest : AbstractTest() {
     @Test
-    fun read() {
-        openResource("User-v1.bin") {
-            val reader = BinaryReader(it)
-            assertEquals("User", reader.readTableName())
-            val columns = reader.readColumns()
-            assertEquals(2, columns.size)
-            assertEquals("ID", columns[1]!!.name)
-            assertEquals("NAME", columns[2]!!.name)
-            assertTrue(reader.nextRow())
-            reader.readRow { index, value ->
-                when (index) {
-                    1 -> assertEquals(1, value)
-                    2 -> assertEquals("user1", value)
-                    else -> fail("Unexpected index: $index")
-                }
+    fun readV1() {
+        openResource("User-v1.bin") { assertRead(it) }
+    }
+
+    @Test
+    fun readV2() {
+        openResource("User-v2.bin") { assertRead(it) }
+    }
+
+    private fun assertRead(inputStream: InputStream) {
+        val reader = BinaryReader(inputStream)
+        assertEquals("User", reader.readTableName())
+        val columns = reader.readColumns()
+        assertEquals(2, columns.size)
+        assertEquals(Types.INTEGER, columns[1]!!.type)
+        assertEquals("ID", columns[1]!!.name)
+        assertEquals(Types.VARCHAR, columns[2]!!.type)
+        assertEquals("NAME", columns[2]!!.name)
+        assertTrue(reader.nextRow())
+        reader.readRow { index, value ->
+            when (index) {
+                1 -> assertEquals(1, value)
+                2 -> assertEquals("user1", value)
+                else -> fail("Unexpected index: $index")
             }
-            assertFalse(reader.nextRow())
         }
+        assertFalse(reader.nextRow())
     }
 }

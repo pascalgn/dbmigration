@@ -18,19 +18,23 @@ package com.github.pascalgn.dbmigration.sql
 
 import com.github.pascalgn.dbmigration.AbstractIT
 import com.github.pascalgn.dbmigration.config.Jdbc
+import com.github.pascalgn.dbmigration.io.BinaryWriter
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.io.File
-import java.util.LinkedList
 
 class ExporterIT : AbstractIT() {
     @Test
     fun runExport() {
         val jdbcUrl = "jdbc:h2:mem:test;INIT=RUNSCRIPT FROM 'classpath:$PKG/runExport.sql'"
         val jdbc = Jdbc(jdbcUrl, "", "", "", false)
-        val tables = LinkedList<Table>(listOf(Table("User", 1L)))
+        val file = File(directory, "User.bin")
 
-        Exporter(directory, jdbc, tables).run()
+        Session(jdbc).use {
+            BinaryWriter(file.outputStream()).use { writer ->
+                Exporter(Table("User", 1L), it, writer).run()
+            }
+        }
 
         assertEquals(1, directory.list().size)
         val userExpected = openResource("User-v2.bin") { it.readBytes() }

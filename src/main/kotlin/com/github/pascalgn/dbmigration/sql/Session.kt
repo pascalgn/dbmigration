@@ -17,11 +17,23 @@
 package com.github.pascalgn.dbmigration.sql
 
 import com.github.pascalgn.dbmigration.config.Jdbc
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
+import java.io.Closeable
 import java.sql.Connection
-import java.sql.DriverManager
+import javax.sql.DataSource
 
-internal class Session(val jdbc: Jdbc) : AutoCloseable {
+internal class Session(private val jdbc: Jdbc) : AutoCloseable {
     val schema = jdbc.schema
+    private val dataSource: DataSource
+
+    init {
+        val config = HikariConfig()
+        config.jdbcUrl = jdbc.url
+        config.username = jdbc.username
+        config.password = jdbc.password
+        this.dataSource = HikariDataSource(config)
+    }
 
     fun isSqlServer(): Boolean {
         return ":sqlserver:" in jdbc.url
@@ -29,14 +41,14 @@ internal class Session(val jdbc: Jdbc) : AutoCloseable {
 
     fun tableName(tableName: String): String {
         if (jdbc.quotes) {
-            return if (isSqlServer()) "[$tableName]" else "\"tableName\""
+            return if (isSqlServer()) "[$tableName]" else "\"$tableName\""
         } else {
             return tableName
         }
     }
 
     inline fun <T> withConnection(block: (Connection) -> T): T {
-        return DriverManager.getConnection(jdbc.url, jdbc.username, jdbc.password).use { connection ->
+        return dataSource.connection.use { connection ->
             if (!connection.autoCommit) {
                 connection.autoCommit = true
             }
@@ -45,6 +57,8 @@ internal class Session(val jdbc: Jdbc) : AutoCloseable {
     }
 
     override fun close() {
-        // currently nothing to do
+        if (dataSource is Closeable) {
+            dataSource.close()
+        }
     }
 }

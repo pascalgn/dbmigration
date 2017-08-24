@@ -17,17 +17,15 @@
 package com.github.pascalgn.dbmigration
 
 import com.github.pascalgn.dbmigration.config.Context
-import com.github.pascalgn.dbmigration.io.BinaryReader
 import com.github.pascalgn.dbmigration.io.CsvReader
-import com.github.pascalgn.dbmigration.sql.Exporter
-import com.github.pascalgn.dbmigration.sql.JdbcImporter
 import com.github.pascalgn.dbmigration.sql.SequenceReset
 import com.github.pascalgn.dbmigration.sql.Session
-import com.github.pascalgn.dbmigration.sql.SqlServerImporter
 import com.github.pascalgn.dbmigration.sql.Table
 import com.github.pascalgn.dbmigration.sql.Utils
+import com.github.pascalgn.dbmigration.task.Executor
+import com.github.pascalgn.dbmigration.task.ExportTask
+import com.github.pascalgn.dbmigration.task.ImportTask
 import org.slf4j.LoggerFactory
-import sun.net.www.content.text.plain
 import java.io.File
 import java.net.URL
 import java.net.URLClassLoader
@@ -115,8 +113,9 @@ class Migration(val context: Context) : Runnable {
 
         logger.info("Exporting {} tables...", tables.size)
 
-        execute(context.source.threads) {
-            Exporter(outputDir, context.source.jdbc, tables).run()
+        Session(context.source.jdbc).use { session ->
+            val tasks = tables.map { ExportTask(outputDir, it, session) }
+            Executor(context.source.threads).execute(tasks)
         }
     }
 
@@ -126,7 +125,8 @@ class Migration(val context: Context) : Runnable {
             val tables = ConcurrentLinkedQueue<Table>()
             session.withConnection { connection ->
                 val tableNames = mutableListOf<String>()
-                connection.metaData.getTables(null, session.schema, "%", null).use { rs ->
+                val types = arrayOf("TABLE")
+                connection.metaData.getTables(null, session.schema, "%", types).use { rs ->
                     while (rs.next()) {
                         tableNames.add(rs.getString("TABLE_NAME"))
                     }
@@ -189,42 +189,11 @@ class Migration(val context: Context) : Runnable {
             }
 
             logger.info("Importing {} files...", files.size)
-            execute(context.target.threads) {
-                while (true) {
-                    session.withConnection { connection ->
-                        val file = files.poll() ?: return@execute
 
-                        BinaryReader(file.inputStream()).use { reader ->
-                            val exportTableName = reader.readTableName()
-                            val tableName = tableNames.getOrElse(exportTableName.toUpperCase()) {
-                                logger.warn("Table {} not found, skipping import!", exportTableName)
-                                return@use
-                            }
+            val tasks = files.map { ImportTask(context, tableNames, it, session) }
+            Executor(context.target.threads).execute(tasks)
 
-                            try {
-                                if (context.target.deleteBeforeImport) {
-                                    Utils.deleteRows(session, connection, tableName)
-                                } else if (!Utils.isEmpty(session, connection, tableName)) {
-                                    logger.warn("Table {} not empty, skipping import!", tableName)
-                                    return@use
-                                }
-
-                                if (session.isSqlServer()) {
-                                    SqlServerImporter(reader, session, tableName).run()
-                                } else {
-                                    JdbcImporter(reader, session, tableName, context.target.batchSize).run()
-                                }
-                            } catch (e: InterruptedException) {
-                                throw e
-                            } catch (e: Exception) {
-                                throw IllegalStateException("Error importing $file", e)
-                            }
-
-                            importSuccessful(file)
-                        }
-                    }
-                }
-            }
+            // TODO: importSuccessful(file)
         }
 
         for (after in context.target.after) {

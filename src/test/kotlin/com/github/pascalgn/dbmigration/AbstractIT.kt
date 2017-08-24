@@ -19,16 +19,11 @@ package com.github.pascalgn.dbmigration
 import org.junit.After
 import org.junit.Before
 import java.io.File
-import java.io.InputStream
 import java.nio.file.Files
 import java.sql.DriverManager
 import java.sql.ResultSet
 
-abstract class AbstractIT {
-    companion object {
-        val PKG = "com/github/pascalgn/dbmigration"
-    }
-
+abstract class AbstractIT : AbstractTest() {
     protected lateinit var directory: File
 
     @Before
@@ -39,15 +34,6 @@ abstract class AbstractIT {
     @After
     fun after() {
         directory.deleteRecursively()
-    }
-
-    inline fun <T> openResource(name: String, block: (InputStream) -> T): T {
-        val stream = javaClass.getResourceAsStream("$PKG/$name")
-            ?: javaClass.getResourceAsStream("/$PKG/$name")
-            ?: Thread.currentThread().contextClassLoader.getResourceAsStream("$PKG/$name")
-            ?: Thread.currentThread().contextClassLoader.getResourceAsStream("/$PKG/$name")
-            ?: throw IllegalArgumentException("Resource not found: $name")
-        return stream.use(block)
     }
 
     inline fun <T> select(url: String, sql: String, block: (ResultSet) -> T): T {

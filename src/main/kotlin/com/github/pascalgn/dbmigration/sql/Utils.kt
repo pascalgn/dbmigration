@@ -18,6 +18,8 @@ package com.github.pascalgn.dbmigration.sql
 
 import org.slf4j.LoggerFactory
 import java.sql.Connection
+import java.sql.ResultSet
+import java.sql.Statement
 
 internal object Utils {
     private val logger = LoggerFactory.getLogger(Utils::class.java)!!
@@ -37,7 +39,7 @@ internal object Utils {
 
     fun isEmpty(session: Session, connection: Connection, tableName: String): Boolean {
         connection.createStatement().use { statement ->
-            statement.executeQuery("SELECT 1 FROM ${session.tableName(tableName)}").use { rs ->
+            executeQuery(statement, "SELECT 1 FROM ${session.tableName(tableName)}").use { rs ->
                 return !rs.next()
             }
         }
@@ -55,7 +57,7 @@ internal object Utils {
     fun rowCount(session: Session, connection: Connection, tableName: String): Long {
         connection.createStatement().use { statement ->
             val sql = "SELECT COUNT(1) FROM ${session.tableName(tableName)}"
-            statement.executeQuery(sql).use { rs ->
+            executeQuery(statement, sql).use { rs ->
                 if (rs.next()) {
                     val count: Long = rs.getLong(1)
                     if (rs.next()) {
@@ -66,6 +68,14 @@ internal object Utils {
                     throw IllegalStateException("No results: $sql")
                 }
             }
+        }
+    }
+
+    private fun executeQuery(statement: Statement, sql: String): ResultSet {
+        try {
+            return statement.executeQuery(sql)
+        } catch (e: Exception) {
+            throw IllegalStateException("Error executing query: $sql", e)
         }
     }
 

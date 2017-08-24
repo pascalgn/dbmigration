@@ -57,8 +57,7 @@ class MigrationIT : AbstractIT() {
         val targetJdbc = Jdbc(targetJdbcUrl, "", "", "", false)
         val target = Target(false, 1, true, listOf("before.sql"), listOf("after.sql"), 10000, targetJdbc, "")
 
-        val context = Context(directory, emptyList(), emptyList(), source, target)
-        return context
+        return Context(directory, emptyList(), emptyList(), source, target)
     }
 
     private fun copyToDirectory(name: String) {

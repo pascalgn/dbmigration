@@ -19,7 +19,9 @@ package com.github.pascalgn.dbmigration.sql
 import com.github.pascalgn.dbmigration.io.BinaryReader
 import com.microsoft.sqlserver.jdbc.ISQLServerBulkRecord
 import com.microsoft.sqlserver.jdbc.SQLServerBulkCopy
+import com.microsoft.sqlserver.jdbc.SQLServerConnection
 import org.slf4j.LoggerFactory
+import java.io.InputStream
 import java.math.BigDecimal
 import java.math.MathContext
 import java.math.RoundingMode
@@ -37,6 +39,8 @@ internal class SqlServerImporter(private val reader: BinaryReader, private val s
 
     override fun run() {
         logger.info("Importing {}...", tableName)
+
+        reader.readTableName()
 
         val sourceColumns = reader.readColumns()
 
@@ -59,6 +63,17 @@ internal class SqlServerImporter(private val reader: BinaryReader, private val s
                                 row[index - 1] = value
                             } else {
                                 row[index - 1] = value.round(MathContext(precision, RoundingMode.HALF_UP))
+                            }
+                        } else if (value is InputStream) {
+                            val type = sourceColumns[index]!!.type
+                            if (type == Types.CLOB) {
+                                row[index - 1] = object {
+                                    override fun toString(): String {
+                                        return value.bufferedReader().use { it.readText() }
+                                    }
+                                }
+                            } else {
+                                row[index - 1] = value
                             }
                         } else {
                             row[index - 1] = value
@@ -128,7 +143,9 @@ internal class SqlServerImporter(private val reader: BinaryReader, private val s
                 logger.trace("Column info: {}", columnInfo)
             }
 
-            val bulkCopy = SQLServerBulkCopy(connection)
+            // SQLServerBulkCopy needs the original SQLServerConnection:
+            val sqlServerConnection = connection.unwrap(SQLServerConnection::class.java)
+            val bulkCopy = SQLServerBulkCopy(sqlServerConnection)
             bulkCopy.destinationTableName = session.tableName(tableName)
             bulkCopy.bulkCopyOptions.bulkCopyTimeout = Int.MAX_VALUE
 

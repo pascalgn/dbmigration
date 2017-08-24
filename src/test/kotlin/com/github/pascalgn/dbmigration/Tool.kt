@@ -26,7 +26,8 @@ object Tool {
             throw IllegalArgumentException("usage: tool csv <file>")
         }
 
-        File(args[1]).inputStream().use { input ->
+        val file = File(args[1])
+        file.inputStream().use { input ->
             val reader = BinaryReader(input)
 
             val tableName = reader.readTableName()

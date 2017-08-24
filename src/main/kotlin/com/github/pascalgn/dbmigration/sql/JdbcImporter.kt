@@ -40,6 +40,8 @@ internal class JdbcImporter(private val reader: BinaryReader, private val sessio
     private fun importFile(connection: Connection) {
         logger.info("Importing {}...", tableName)
 
+        reader.readTableName()
+
         val sourceColumns = reader.readColumns()
         val targetColumns = Utils.getColumns(connection, session.schema, tableName)
 
@@ -83,8 +85,13 @@ internal class JdbcImporter(private val reader: BinaryReader, private val sessio
                                     statement.setBinaryStream(targetIdx, null as InputStream?, 0)
                                 }
                             }
-                            else ->
-                                statement.setObject(targetIdx, value)
+                            else -> {
+                                if (value is InputStream) {
+                                    statement.setBinaryStream(targetIdx, value, value.available())
+                                } else {
+                                    statement.setObject(targetIdx, value)
+                                }
+                            }
                         }
                     }
                 }

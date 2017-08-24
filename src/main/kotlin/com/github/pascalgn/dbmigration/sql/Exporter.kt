@@ -16,18 +16,14 @@
 
 package com.github.pascalgn.dbmigration.sql
 
-import com.github.pascalgn.dbmigration.config.Jdbc
-import com.github.pascalgn.dbmigration.io.BinaryWriter
+import com.github.pascalgn.dbmigration.io.DataWriter
 import org.slf4j.LoggerFactory
-import java.io.File
 import java.sql.Connection
-import java.sql.DriverManager
 import java.sql.ResultSet
 import java.sql.Types
-import java.util.Queue
 
-internal class Exporter(private val outputDir: File, private val jdbc: Jdbc,
-                        private val tables: Queue<Table>) : Runnable {
+internal class Exporter(private val table: Table, private val session: Session,
+                        private val writer: DataWriter) : Runnable {
     companion object {
         val logger = LoggerFactory.getLogger(Exporter::class.java)!!
 
@@ -35,48 +31,36 @@ internal class Exporter(private val outputDir: File, private val jdbc: Jdbc,
     }
 
     override fun run() {
-        DriverManager.getConnection(jdbc.url, jdbc.username, jdbc.password).use { connection ->
-            while (true) {
-                val table = tables.poll() ?: break
-                exportTable(connection, table)
-            }
+        session.withConnection { connection ->
+            exportTable(connection, table)
         }
     }
 
     private fun exportTable(connection: Connection, table: Table) {
         val tableName = table.name
-        val file = File(outputDir, "$tableName.bin")
-        if (file.createNewFile()) {
-            logger.info("Exporting {}", tableName)
-            connection.createStatement().use { statement ->
-                statement.fetchSize = FETCH_SIZE
-                statement.executeQuery("SELECT * FROM ${jdbc.tableName(tableName)}").use { rs ->
-                    file.outputStream().use { output ->
-                        val writer = BinaryWriter(output)
+        logger.debug("Exporting {}", tableName)
+        connection.createStatement().use { statement ->
+            statement.fetchSize = FETCH_SIZE
+            statement.executeQuery("SELECT * FROM ${session.tableName(tableName)}").use { rs ->
+                // file format version:
+                writer.writeTableName(tableName)
 
-                        // file format version:
-                        writer.writeTableName(tableName)
+                val columnCount = rs.metaData.columnCount
+                val columns = (1..columnCount).associateBy({ it }, { getColumn(rs, it) })
 
-                        val columnCount = rs.metaData.columnCount
-                        val columns = (1..columnCount).associateBy({ it }, { getColumn(rs, it) })
+                if (columnCount == 0) {
+                    throw IllegalStateException("Table with 0 columns: $tableName")
+                }
 
-                        if (columnCount == 0) {
-                            throw IllegalStateException("Table with 0 columns: $tableName")
-                        }
+                writer.writeColumns(columns)
 
-                        writer.writeColumns(columns)
-
-                        rs.fetchSize = FETCH_SIZE
-                        while (rs.next()) {
-                            writer.writeRow { idx -> read(rs, idx, columns[idx]!!) }
-                        }
-                    }
+                rs.fetchSize = FETCH_SIZE
+                while (rs.next()) {
+                    writer.writeRow { idx -> read(rs, idx, columns[idx]!!) }
                 }
             }
-            logger.info("Exported {}", file)
-        } else {
-            logger.warn("File exists: {}", file)
         }
+        logger.debug("Exported {}", tableName)
     }
 
     private fun getColumn(rs: ResultSet, index: Int): Column {

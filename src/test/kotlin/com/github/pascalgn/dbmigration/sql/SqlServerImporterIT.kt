@@ -47,8 +47,7 @@ class SqlServerImporterIT : AbstractIT() {
 
             openResource("User-v2.bin") { input ->
                 BinaryReader(input).use { reader ->
-                    val tableName = reader.readTableName()
-                    SqlServerImporter(reader, session, tableName).run()
+                    SqlServerImporter(reader, session, "User").run()
                 }
             }
 

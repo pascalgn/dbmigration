@@ -25,18 +25,18 @@ import java.sql.Date
 import java.sql.Types
 import java.text.SimpleDateFormat
 
-internal class BinaryWriter(output: OutputStream) {
+internal open class BinaryWriter(output: OutputStream) : DataWriter {
     private val data = DataOutputStream(output)
 
     private val columns = mutableMapOf<Int, Column>()
 
-    fun writeTableName(tableName: String) {
+    override fun writeTableName(tableName: String) {
         // version:
         data.writeInt(2)
         data.writeUTF(tableName)
     }
 
-    fun writeColumns(columns: Map<Int, Column>) {
+    override fun writeColumns(columns: Map<Int, Column>) {
         this.columns.clear()
         this.columns.putAll(columns)
         data.writeInt(columns.size)
@@ -47,11 +47,11 @@ internal class BinaryWriter(output: OutputStream) {
         }
     }
 
-    fun writeRow(row: Array<Any?>) {
+    override fun writeRow(row: Array<Any?>) {
         writeRow { row[it - 1] }
     }
 
-    fun writeRow(block: (Int) -> Any?) {
+    override fun writeRow(block: (Int) -> Any?) {
         data.writeByte(1)
         for (idx in 1..columns.size) {
             val column = columns[idx]!!
@@ -92,5 +92,9 @@ internal class BinaryWriter(output: OutputStream) {
     private fun write(date: Date, withTime: Boolean) {
         val format = if (withTime) "yyyy-MM-dd'T'HH:mm:ssZ" else "yyyy-MM-ddZ"
         data.writeUTF(SimpleDateFormat(format).format(date))
+    }
+
+    override fun close() {
+        data.close()
     }
 }
