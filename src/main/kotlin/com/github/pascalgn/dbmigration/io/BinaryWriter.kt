@@ -22,17 +22,18 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.math.BigDecimal
 import java.sql.Date
+import java.sql.Timestamp
 import java.sql.Types
-import java.text.SimpleDateFormat
+import java.util.zip.GZIPOutputStream
 
 internal open class BinaryWriter(output: OutputStream) : DataWriter {
-    private val data = DataOutputStream(output)
+    private val data = DataOutputStream(GZIPOutputStream(output))
 
     private val columns = mutableMapOf<Int, Column>()
 
     override fun writeTableName(tableName: String) {
         // version:
-        data.writeInt(2)
+        data.writeInt(3)
         data.writeUTF(tableName)
     }
 
@@ -66,8 +67,8 @@ internal open class BinaryWriter(output: OutputStream) : DataWriter {
                     Types.BIGINT -> write(value as BigDecimal)
                     Types.VARCHAR -> data.writeUTF(value as String)
                     Types.BLOB, Types.CLOB -> write(value as InputStream)
-                    Types.DATE -> write(value as Date, false)
-                    Types.TIMESTAMP -> write(value as Date, true)
+                    Types.DATE -> write(value as Date)
+                    Types.TIMESTAMP -> write(value as Timestamp)
                     else -> throw IllegalArgumentException("Unknown column type: $column")
                 }
             }
@@ -89,9 +90,12 @@ internal open class BinaryWriter(output: OutputStream) : DataWriter {
         }
     }
 
-    private fun write(date: Date, withTime: Boolean) {
-        val format = if (withTime) "yyyy-MM-dd'T'HH:mm:ssZ" else "yyyy-MM-ddZ"
-        data.writeUTF(SimpleDateFormat(format).format(date))
+    private fun write(date: Date) {
+        data.writeLong(date.time)
+    }
+
+    private fun write(timestamp: Timestamp) {
+        data.writeLong(timestamp.time)
     }
 
     override fun close() {

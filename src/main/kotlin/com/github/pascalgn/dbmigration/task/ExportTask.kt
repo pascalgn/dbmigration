@@ -26,7 +26,8 @@ import com.github.pascalgn.dbmigration.sql.Utils
 import org.slf4j.LoggerFactory
 import java.io.File
 
-internal class ExportTask(outputDir: File, private val table: Table, private val session: Session) : Task() {
+internal class ExportTask(outputDir: File, private val overwrite: Boolean, private val table: Table,
+                          private val session: Session) : Task() {
     companion object {
         val logger = LoggerFactory.getLogger(ExportTask::class.java)!!
     }
@@ -34,7 +35,7 @@ internal class ExportTask(outputDir: File, private val table: Table, private val
     private val file = File(outputDir, "${table.name}.bin")
 
     override fun doInitialize() {
-        if (file.exists()) {
+        if (file.exists() && !overwrite) {
             logger.debug("File exists: {}", file)
             size = 0
         } else {
@@ -47,7 +48,7 @@ internal class ExportTask(outputDir: File, private val table: Table, private val
     }
 
     override fun doExecute() {
-        if (file.createNewFile()) {
+        if (overwrite || file.createNewFile()) {
             BinaryWriter(file.outputStream()).use {
                 CountingDataWriter(it).use { writer ->
                     Exporter(table, session, writer).run()

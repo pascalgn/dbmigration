@@ -16,8 +16,4 @@
 
 package com.github.pascalgn.dbmigration.config
 
-data class Jdbc(val url: String, val username: String, val password: String, val schema: String, val quotes: Boolean) {
-    fun tableName(tableName: String): String {
-        return if (quotes) "\"$tableName\"" else tableName
-    }
-}
+data class Jdbc(val url: String, val username: String, val password: String, val schema: String, val quotes: Boolean)

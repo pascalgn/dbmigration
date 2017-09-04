@@ -31,8 +31,6 @@ import java.net.URL
 import java.net.URLClassLoader
 import java.util.Queue
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 
 class Migration(val context: Context) : Runnable {
     companion object {
@@ -99,12 +97,9 @@ class Migration(val context: Context) : Runnable {
             throw IllegalStateException("No tables found!")
         }
 
-        val it = tables.iterator()
-        while (it.hasNext()) {
-            val table = it.next()
-            if (context.source.exclude.contains(table.name)) {
-                it.remove()
-            }
+        tables.removeIf {
+            (context.source.include.isNotEmpty() && !context.source.include.contains(it.name))
+                || (context.source.exclude.contains(it.name))
         }
 
         if (tables.isEmpty()) {
@@ -114,7 +109,7 @@ class Migration(val context: Context) : Runnable {
         logger.info("Exporting {} tables...", tables.size)
 
         Session(context.source.jdbc).use { session ->
-            val tasks = tables.map { ExportTask(outputDir, it, session) }
+            val tasks = tables.map { ExportTask(outputDir, context.source.overwrite, it, session) }
             Executor(context.source.threads).execute(tasks)
         }
     }
@@ -156,19 +151,10 @@ class Migration(val context: Context) : Runnable {
             return
         }
 
-        val imported = File(context.root, "imported.txt")
-        if (imported.isFile) {
-            imported.readLines().forEach { filename ->
-                logger.info("Already imported: {}", filename)
-                files.remove(File(inputDir, filename))
-            }
-        }
+        val imported = FileImportController(File(context.root, "imported.lst"))
 
-        val importSuccessful = { file: File ->
-            synchronized(imported) {
-                imported.appendText(file.name + System.lineSeparator())
-            }
-        }
+        imported.imported().forEach { logger.info("Already imported: {}", it) }
+        files.removeIf { imported[it] }
 
         val tableNames = mutableMapOf<String, String>()
         session.withConnection { connection ->
@@ -190,10 +176,8 @@ class Migration(val context: Context) : Runnable {
 
             logger.info("Importing {} files...", files.size)
 
-            val tasks = files.map { ImportTask(context, tableNames, it, session) }
+            val tasks = files.map { ImportTask(context, imported, tableNames, it, session) }
             Executor(context.target.threads).execute(tasks)
-
-            // TODO: importSuccessful(file)
         }
 
         for (after in context.target.after) {
@@ -208,29 +192,6 @@ class Migration(val context: Context) : Runnable {
             file.inputStream().use { input ->
                 SequenceReset(CsvReader(input), session).run()
             }
-        }
-    }
-
-    private inline fun execute(threads: Int, crossinline block: () -> Unit) {
-        var errors = false
-        val executorService = Executors.newFixedThreadPool(threads)
-        for (i in 1..threads) {
-            executorService.submit {
-                try {
-                    block()
-                } catch (interruptedException: InterruptedException) {
-                    logger.debug("Interrupted!")
-                } catch (throwable: Throwable) {
-                    errors = true
-                    logger.error("Error while executing!", throwable)
-                    executorService.shutdownNow()
-                }
-            }
-        }
-        executorService.shutdown()
-        executorService.awaitTermination(14, TimeUnit.DAYS)
-        if (errors) {
-            throw IllegalStateException("Errors while executing tasks!")
         }
     }
 

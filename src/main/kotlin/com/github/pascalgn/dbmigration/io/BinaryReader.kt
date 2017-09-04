@@ -17,18 +17,35 @@
 package com.github.pascalgn.dbmigration.io
 
 import com.github.pascalgn.dbmigration.sql.Column
+import java.io.BufferedInputStream
 import java.io.ByteArrayInputStream
 import java.io.DataInputStream
 import java.io.InputStream
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.sql.Date
+import java.sql.Timestamp
 import java.sql.Types
 import java.text.SimpleDateFormat
 import java.util.TreeMap
+import java.util.zip.GZIPInputStream
 
 internal class BinaryReader(input: InputStream) : AutoCloseable {
-    private val data = DataInputStream(input)
+    private val dateFormat = SimpleDateFormat("yyyy-MM-ddZ")
+    private val timestampFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ")
+
+    private val gzip: Boolean
+    private val data: DataInputStream
+
+    init {
+        val buf = BufferedInputStream(input, 2)
+        buf.mark(2)
+        val header0 = buf.read()
+        val header1 = buf.read()
+        buf.reset()
+        gzip = ((header1 shl 8) or header0) == GZIPInputStream.GZIP_MAGIC
+        data = if (gzip) DataInputStream(GZIPInputStream(buf)) else DataInputStream(buf)
+    }
 
     private var version = 0
     private val columns = TreeMap<Int, Column>()
@@ -38,8 +55,11 @@ internal class BinaryReader(input: InputStream) : AutoCloseable {
             throw IllegalStateException("Cannot call readTableName() more than once!")
         }
         version = data.readInt()
-        if (version != 1 && version != 2) {
+        if (version != 1 && version != 2 && version != 3) {
             throw IllegalStateException("Unexpected version: $version")
+        }
+        if (gzip && version < 3) {
+            throw IllegalStateException("Unexpected version for gzip content: $version")
         }
         return data.readUTF()
     }
@@ -87,8 +107,8 @@ internal class BinaryReader(input: InputStream) : AutoCloseable {
                     Types.BIGINT -> block.invoke(idx, readBigInteger())
                     Types.VARCHAR -> block.invoke(idx, data.readUTF())
                     Types.BLOB, Types.CLOB, Types.VARBINARY -> block.invoke(idx, readBlob())
-                    Types.DATE -> block.invoke(idx, readDate(false))
-                    Types.TIMESTAMP -> block.invoke(idx, readDate(true))
+                    Types.DATE -> block.invoke(idx, readDate())
+                    Types.TIMESTAMP -> block.invoke(idx, readTimestamp())
                     else -> throw IllegalArgumentException("Unknown column type: $column")
                 }
             }
@@ -129,10 +149,22 @@ internal class BinaryReader(input: InputStream) : AutoCloseable {
         return ByteArrayInputStream(bytes)
     }
 
-    private fun readDate(withTime: Boolean): Date {
-        val format = if (withTime) "yyyy-MM-dd'T'HH:mm:ssZ" else "yyyy-MM-ddZ"
-        val date = SimpleDateFormat(format).parse(data.readUTF())
-        return Date(date.time)
+    private fun readDate(): Date {
+        if (version < 3) {
+            val date = dateFormat.parse(data.readUTF())
+            return Date(date.time)
+        } else {
+            return Date(data.readLong())
+        }
+    }
+
+    private fun readTimestamp(): Timestamp {
+        if (version < 3) {
+            val date = timestampFormat.parse(data.readUTF())
+            return Timestamp(date.time)
+        } else {
+            return Timestamp(data.readLong())
+        }
     }
 
     override fun close() {

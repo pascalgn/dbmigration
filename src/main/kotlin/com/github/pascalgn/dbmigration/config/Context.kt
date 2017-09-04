@@ -30,14 +30,16 @@ data class Context(val root: File,
             val drivers = properties.getProperty("drivers", "").split(",").filter { it.isNotBlank() }
 
             val sourceSkip = properties.getProperty("source.skip", "false").toBoolean()
+            val sourceOverwrite = properties.getProperty("source.overwrite", "false").toBoolean()
             val sourceThreads = properties.getProperty("source.threads", DEFAULT_THREADS).toInt()
+            val sourceInclude = properties.getProperty("source.include", "").split(",").filter { it.isNotBlank() }
             val sourceExclude = properties.getProperty("source.exclude", "").split(",").filter { it.isNotBlank() }
             val sourceJdbc = Jdbc(properties.getProperty("source.jdbc.url"),
                 properties.getProperty("source.jdbc.username"),
                 properties.getProperty("source.jdbc.password"),
                 properties.getProperty("source.jdbc.schema"),
                 properties.getProperty("source.jdbc.quotes", "true").toBoolean())
-            val source = Source(sourceSkip, sourceThreads, sourceExclude, sourceJdbc)
+            val source = Source(sourceSkip, sourceOverwrite, sourceThreads, sourceInclude, sourceExclude, sourceJdbc)
 
             val targetSkip = properties.getProperty("target.skip", "false").toBoolean()
             val targetThreads = properties.getProperty("target.threads", DEFAULT_THREADS).toInt()

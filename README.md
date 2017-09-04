@@ -5,7 +5,7 @@ A tool to export data from one SQL database and import it into another.
 ## Usage
 
     mkdir /tmp/db
-    vi /tmp/db/migration.properties
+    vim /tmp/db/migration.properties
     java com.github.pascalgn.dbmigration.Main /tmp/db
 
 ### Configuration
@@ -39,11 +39,11 @@ Make sure to also change your migration configuration accordingly:
 
 ## Binary format
 
-The exported files are written in the following format:
+The exported files are gzip compressed and written in the following format:
 
     <content> ::= <version> <table-name> <columns> <rows>
 
-    <version> ::= "2"
+    <version> ::= "3"
 
     <table-name> ::= <text>
 
@@ -55,12 +55,14 @@ The exported files are written in the following format:
     <rows> ::= { "1" <row> }
     ; each row contains exactly <column-count> entries
     <row> ::= { <row-column> }
-    <row-column> ::= "0" | "1" ( <text> | <number> | <length> bytes )
+    <row-column> ::= "0" | "1" ( <text> | <number> | <length> bytes | <date> )
 
     <text> ::= <length> utf8-encoded-bytes
     <length> ::= int
     <number> ::= <scale> <length> bytes
     <scale> ::= int
+    ; dates are represented as milliseconds since January 1, 1970
+    <date> ::= long
 
 ## License
 

@@ -41,9 +41,9 @@ internal class Session(private val jdbc: Jdbc) : AutoCloseable {
 
     fun tableName(tableName: String): String {
         if (jdbc.quotes) {
-            return if (isSqlServer()) "[$tableName]" else "\"$tableName\""
+            return if (isSqlServer()) "[$schema].[$tableName]" else "\"$schema\".\"$tableName\""
         } else {
-            return tableName
+            return schema + "." + tableName
         }
     }
 

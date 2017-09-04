@@ -48,6 +48,8 @@ internal class Exporter(private val table: Table, private val session: Session,
                 val columnCount = rs.metaData.columnCount
                 val columns = (1..columnCount).associateBy({ it }, { getColumn(rs, it) })
 
+                logger.trace("Columns for {}: {}", tableName, columns)
+
                 if (columnCount == 0) {
                     throw IllegalStateException("Table with 0 columns: $tableName")
                 }
@@ -56,7 +58,12 @@ internal class Exporter(private val table: Table, private val session: Session,
 
                 rs.fetchSize = FETCH_SIZE
                 while (rs.next()) {
-                    writer.writeRow { idx -> read(rs, idx, columns[idx]!!) }
+                    logger.trace("Next row:")
+                    writer.writeRow { idx ->
+                        val value = read(rs, idx, columns[idx]!!)
+                        logger.trace("{}: {}: {}", idx, value?.javaClass?.simpleName, value)
+                        value
+                    }
                 }
             }
         }
@@ -83,7 +90,7 @@ internal class Exporter(private val table: Table, private val session: Session,
             Types.VARCHAR -> rs.getString(index)
             Types.BLOB, Types.CLOB -> rs.getBinaryStream(index)
             Types.DATE -> rs.getDate(index)
-            Types.TIMESTAMP -> rs.getDate(index)
+            Types.TIMESTAMP -> rs.getTimestamp(index)
             else -> throw IllegalArgumentException("Unknown column type: $column")
         }
         return if (rs.wasNull()) null else value

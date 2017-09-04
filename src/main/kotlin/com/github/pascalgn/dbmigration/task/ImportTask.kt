@@ -16,6 +16,7 @@
 
 package com.github.pascalgn.dbmigration.task
 
+import com.github.pascalgn.dbmigration.ImportController
 import com.github.pascalgn.dbmigration.config.Context
 import com.github.pascalgn.dbmigration.io.BinaryReader
 import com.github.pascalgn.dbmigration.sql.JdbcImporter
@@ -28,8 +29,9 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.InputStream
 
-internal class ImportTask(private val context: Context, private val tableNames: Map<String, String>,
-                          private val file: File, private val session: Session) : Task() {
+internal class ImportTask(private val context: Context, private val imported: ImportController,
+                          private val tableNames: Map<String, String>, private val file: File,
+                          private val session: Session) : Task() {
     companion object {
         val logger = LoggerFactory.getLogger(ImportTask::class.java)!!
     }
@@ -73,6 +75,7 @@ internal class ImportTask(private val context: Context, private val tableNames: 
                 }
             }
         }
+        imported[file] = true
     }
 
     private inner class CountingStream(input: InputStream) : ProxyInputStream(input) {

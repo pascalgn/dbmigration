@@ -50,7 +50,7 @@ internal abstract class Task {
         private @Synchronized set
 
     val failed get() = error != null
-    val initialized get() = size != -1L
+    val initialized @Synchronized get() = (error == null && size != -1L)
     val complete @Synchronized get() = (error == null && size != -1L && completed == size)
 
     var executing: Boolean = false
@@ -68,7 +68,6 @@ internal abstract class Task {
                 doInitialize()
             } catch (t: Throwable) {
                 error = t
-                size = -1L
                 throw t
             }
             if (size < 0L) {
@@ -88,6 +87,8 @@ internal abstract class Task {
                 throw IllegalStateException("Not initialized!")
             } else if (completed != 0L) {
                 throw IllegalStateException("Already executed!")
+            } else if (error != null) {
+                throw IllegalStateException("Cannot start a task with failed initialization!")
             } else if (completed < size) {
                 try {
                     executing = true

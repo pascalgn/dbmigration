@@ -23,20 +23,27 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import java.io.InputStream
+import java.sql.Date
+import java.sql.Timestamp
 import java.sql.Types
 
 class BinaryReaderTest : AbstractTest() {
     @Test
     fun readV1() {
-        openResource("User-v1.bin") { assertRead(it) }
+        openResource("User-v1.bin") { assertRead12(it) }
     }
 
     @Test
     fun readV2() {
-        openResource("User-v2.bin") { assertRead(it) }
+        openResource("User-v2.bin") { assertRead12(it) }
     }
 
-    private fun assertRead(inputStream: InputStream) {
+    @Test
+    fun readV3() {
+        openResource("User-v3.bin") { assertRead3(it) }
+    }
+
+    private fun assertRead12(inputStream: InputStream) {
         val reader = BinaryReader(inputStream)
         assertEquals("User", reader.readTableName())
         val columns = reader.readColumns()
@@ -50,6 +57,34 @@ class BinaryReaderTest : AbstractTest() {
             when (index) {
                 1 -> assertEquals(1, value)
                 2 -> assertEquals("user1", value)
+                else -> fail("Unexpected index: $index")
+            }
+        }
+        assertFalse(reader.nextRow())
+    }
+
+    private fun assertRead3(inputStream: InputStream) {
+        val reader = BinaryReader(inputStream)
+        assertEquals("User", reader.readTableName())
+
+        val columns = reader.readColumns()
+        assertEquals(4, columns.size)
+        assertEquals(Types.INTEGER, columns[1]!!.type)
+        assertEquals("ID", columns[1]!!.name)
+        assertEquals(Types.VARCHAR, columns[2]!!.type)
+        assertEquals("NAME", columns[2]!!.name)
+        assertEquals(Types.DATE, columns[3]!!.type)
+        assertEquals("DATE", columns[3]!!.name)
+        assertEquals(Types.TIMESTAMP, columns[4]!!.type)
+        assertEquals("TS", columns[4]!!.name)
+
+        assertTrue(reader.nextRow())
+        reader.readRow { index, value ->
+            when (index) {
+                1 -> assertEquals(1, value)
+                2 -> assertEquals("user1", value)
+                3 -> assertEquals(Date(999999), value)
+                4 -> assertEquals(Timestamp(999999), value)
                 else -> fail("Unexpected index: $index")
             }
         }
