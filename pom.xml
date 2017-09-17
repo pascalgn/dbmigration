@@ -98,6 +98,17 @@
                 </executions>
             </plugin>
             <plugin>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>2.4</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>com.github.pascalgn.dbmigration.Main</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven-surefire-plugin.version}</version>
             </plugin>
@@ -205,6 +216,7 @@
                     <excludes>
                         <exclude>.*</exclude>
                         <exclude>LICENSE</exclude>
+                        <exclude>src/build/**</exclude>
                         <exclude>src/main/resources/**/*.properties</exclude>
                         <exclude>src/test/resources/**</exclude>
                         <exclude>src/test/docker/*</exclude>
@@ -220,6 +232,37 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>com.github.wvengen</groupId>
+                <artifactId>proguard-maven-plugin</artifactId>
+                <version>2.0.14</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>proguard</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <obfuscate>false</obfuscate>
+                    <proguardInclude>src/build/proguard.conf</proguardInclude>
+                    <injar>${project.build.finalName}.jar</injar>
+                    <outjar>${project.build.finalName}-dist.jar</outjar>
+                    <outputDirectory>${project.build.directory}</outputDirectory>
+                    <includeDependencyInjar>true</includeDependencyInjar>
+                    <outFilter>!META-INF/*.txt</outFilter>
+                    <libs>
+                        <lib>${java.home}/lib/rt.jar</lib>
+                    </libs>
+                    <exclusions>
+                        <exclusion>
+                            <groupId>com.microsoft.sqlserver</groupId>
+                            <artifactId>mssql-jdbc</artifactId>
+                        </exclusion>
+                    </exclusions>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 
@@ -234,6 +277,11 @@
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
             <version>2.5</version>
+        </dependency>
+        <dependency>
+            <groupId>commons-lang</groupId>
+            <artifactId>commons-lang</artifactId>
+            <version>2.6</version>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
@@ -262,6 +310,12 @@
             <artifactId>mssql-jdbc</artifactId>
             <version>6.1.0.jre8</version>
             <optional>true</optional>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.microsoft.azure</groupId>
+                    <artifactId>azure-keyvault</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
