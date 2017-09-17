@@ -16,7 +16,6 @@
 
 package com.github.pascalgn.dbmigration.task
 
-import com.github.pascalgn.dbmigration.ImportController
 import com.github.pascalgn.dbmigration.config.Context
 import com.github.pascalgn.dbmigration.io.BinaryReader
 import com.github.pascalgn.dbmigration.sql.JdbcImporter

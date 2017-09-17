@@ -54,6 +54,11 @@ internal class ExportTask(outputDir: File, private val overwrite: Boolean, priva
                     Exporter(table, session, writer).run()
                 }
             }
+            // rows could have been deleted while running, still indicate success:
+            if (completed < size) {
+                logger.warn("Rows have been deleted while the export was running: {}", table.name)
+                completed = size
+            }
         } else {
             logger.warn("File has been created after this task has been initialized: {}", file)
             completed = size
@@ -71,12 +76,16 @@ internal class ExportTask(outputDir: File, private val overwrite: Boolean, priva
 
         override fun writeRow(row: Array<Any?>) {
             delegate.writeRow(row)
-            completed++
+            if (completed < size) {
+                completed++
+            }
         }
 
         override fun writeRow(block: (Int) -> Any?) {
             delegate.writeRow(block)
-            completed++
+            if (completed < size) {
+                completed++
+            }
         }
 
         override fun close() {

@@ -24,6 +24,7 @@ import com.github.pascalgn.dbmigration.sql.Table
 import com.github.pascalgn.dbmigration.sql.Utils
 import com.github.pascalgn.dbmigration.task.Executor
 import com.github.pascalgn.dbmigration.task.ExportTask
+import com.github.pascalgn.dbmigration.task.FileImportController
 import com.github.pascalgn.dbmigration.task.ImportTask
 import org.slf4j.LoggerFactory
 import java.io.File
