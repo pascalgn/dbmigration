@@ -206,6 +206,14 @@
                 <groupId>com.mycila</groupId>
                 <artifactId>license-maven-plugin</artifactId>
                 <version>${license-maven-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
                 <configuration>
                     <header>${project.basedir}/header.txt</header>
                     <strictCheck>true</strictCheck>
@@ -222,15 +230,6 @@
                         <exclude>src/test/docker/*</exclude>
                     </excludes>
                 </configuration>
-                <executions>
-                    <execution>
-                        <id>check-licenses</id>
-                        <phase>verify</phase>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>com.github.wvengen</groupId>
@@ -261,6 +260,35 @@
                             <artifactId>mssql-jdbc</artifactId>
                         </exclusion>
                     </exclusions>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>1.6.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <workingDirectory>${project.basedir}</workingDirectory>
+                    <executable>docker</executable>
+                    <arguments>
+                        <argument>build</argument>
+                        <argument>--build-arg</argument>
+                        <argument>PROJECT_VERSION=${project.version}</argument>
+                        <argument>-t</argument>
+                        <argument>pascalgn/dbmigration:${project.version}</argument>
+                        <argument>-t</argument>
+                        <argument>pascalgn/dbmigration:latest</argument>
+                        <argument>-f</argument>
+                        <argument>src/build/Dockerfile</argument>
+                        <argument>.</argument>
+                    </arguments>
                 </configuration>
             </plugin>
         </plugins>
