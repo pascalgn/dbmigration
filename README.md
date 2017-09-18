@@ -37,6 +37,20 @@ Make sure to also change your migration configuration accordingly:
     source.jdbc.url=jdbc:sqlserver://127.0.0.1,12345;database=dbname
     ...
 
+## Docker image
+
+This tool is also available as a [docker image](https://hub.docker.com/r/pascalgn/dbmigration/):
+
+    $ mkdir /tmp/db
+    $ vim /tmp/db/migration.properties
+    $ docker run -v /tmp/db:/home/dbmigration/data pascalgn/dbmigration
+
+You can use the `LOG_LEVEL` environment variable to change the log output:
+
+    $ docker run -e LOG_LEVEL=debug -v /tmp/db:/home/dbmigration/data pascalgn/dbmigration
+
+The default level is `info`. For more information, see the [Dockerfile](src/build/Dockerfile).
+
 ## Binary format
 
 The exported files are gzip compressed and written in the following format:
