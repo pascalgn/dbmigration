@@ -30,7 +30,7 @@ internal abstract class Task {
         }
 
     var completed = 0L
-        @Synchronized get
+        @Synchronized get() = if (error == null) field else size
         protected @Synchronized set(value) {
             if (value < 0) {
                 throw IllegalArgumentException("Negative completion not allowed: $value")

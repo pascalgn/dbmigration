@@ -17,5 +17,7 @@
 package com.github.pascalgn.dbmigration.config
 
 data class Target(val skip: Boolean, val threads: Int, val deleteBeforeImport: Boolean,
-                  val before: List<String>, val after: List<String>, val batchSize: Int,
+                  val before: Scripts, val after: Scripts, val batchSize: Int,
                   val jdbc: Jdbc, val resetSequences: String)
+
+data class Scripts(val files: List<String>, val continueOnError: Boolean = false)

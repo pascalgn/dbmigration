@@ -44,8 +44,10 @@ data class Context(val root: File,
             val targetSkip = properties.getProperty("target.skip", "false").toBoolean()
             val targetThreads = properties.getProperty("target.threads", DEFAULT_THREADS).toInt()
             val deleteBeforeImport = properties.getProperty("target.deleteBeforeImport", "false").toBoolean()
-            val before = properties.getProperty("target.before", "").split(",").filter { it.isNotBlank() }
-            val after = properties.getProperty("target.after", "").split(",").filter { it.isNotBlank() }
+            val before = Scripts(properties.getProperty("target.before", "").split(",").filter { it.isNotBlank() },
+                properties.getProperty("target.before.continueOnError", "false").toBoolean())
+            val after = Scripts(properties.getProperty("target.after", "").split(",").filter { it.isNotBlank() },
+                properties.getProperty("target.after.continueOnError", "false").toBoolean())
             val batchSize = properties.getProperty("target.batchSize", "10000").toInt()
             val targetJdbc = Jdbc(properties.getProperty("target.jdbc.url"),
                 properties.getProperty("target.jdbc.username"),

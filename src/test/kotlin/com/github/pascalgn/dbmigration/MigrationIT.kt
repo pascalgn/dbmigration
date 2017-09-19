@@ -18,6 +18,7 @@ package com.github.pascalgn.dbmigration
 
 import com.github.pascalgn.dbmigration.config.Context
 import com.github.pascalgn.dbmigration.config.Jdbc
+import com.github.pascalgn.dbmigration.config.Scripts
 import com.github.pascalgn.dbmigration.config.Source
 import com.github.pascalgn.dbmigration.config.Target
 import org.junit.Assert.assertEquals
@@ -55,7 +56,8 @@ class MigrationIT : AbstractIT() {
         copyToDirectory("after.sql")
 
         val targetJdbc = Jdbc(targetJdbcUrl, "", "", "", false)
-        val target = Target(false, 1, true, listOf("before.sql"), listOf("after.sql"), 10000, targetJdbc, "")
+        val target = Target(false, 1, true, Scripts(listOf("before.sql")), Scripts(listOf("after.sql")), 10000,
+            targetJdbc, "")
 
         return Context(directory, emptyList(), emptyList(), source, target)
     }

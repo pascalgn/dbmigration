@@ -17,6 +17,7 @@
 package com.github.pascalgn.dbmigration
 
 import com.github.pascalgn.dbmigration.config.Context
+import com.github.pascalgn.dbmigration.config.Scripts
 import com.github.pascalgn.dbmigration.io.CsvReader
 import com.github.pascalgn.dbmigration.sql.SequenceReset
 import com.github.pascalgn.dbmigration.sql.Session
@@ -138,9 +139,7 @@ class Migration(val context: Context) : Runnable {
             logger.warn("Deleting existing rows before importing")
         }
 
-        for (before in context.target.before) {
-            executeScript(session, before)
-        }
+        executeScripts(session, context.target.before)
 
         val files = ConcurrentLinkedQueue<File>()
         inputDir.listFiles().filter { it.isFile && it.name.endsWith(".bin") }.forEach { files.add(it) }
@@ -181,9 +180,7 @@ class Migration(val context: Context) : Runnable {
             Executor(context.target.threads).execute(tasks)
         }
 
-        for (after in context.target.after) {
-            executeScript(session, after)
-        }
+        executeScripts(session, context.target.after)
 
         if (context.target.resetSequences.isNotBlank()) {
             val file = File(context.root, context.target.resetSequences)
@@ -196,7 +193,13 @@ class Migration(val context: Context) : Runnable {
         }
     }
 
-    private fun executeScript(session: Session, filename: String) {
+    private fun executeScripts(session: Session, scripts: Scripts) {
+        for (filename in scripts.files) {
+            executeScript(session, filename, scripts.continueOnError)
+        }
+    }
+
+    private fun executeScript(session: Session, filename: String, continueOnError: Boolean) {
         val file = File(context.root, filename)
         if (!file.isFile) {
             throw IllegalArgumentException("Not a file: $file")
@@ -212,7 +215,19 @@ class Migration(val context: Context) : Runnable {
                         val plain = sql.replace(Regex("\\s+"), " ").trim()
                         logger.debug("Executing SQL: {}", plain)
                     }
-                    statement.execute(sql)
+                    try {
+                        statement.execute(sql)
+                    } catch (e: Exception) {
+                        if (continueOnError) {
+                            if (logger.isDebugEnabled) {
+                                logger.debug("Error executing script: {}", filename, e)
+                            } else {
+                                logger.info("Error executing script: {}", filename)
+                            }
+                        } else {
+                            throw e
+                        }
+                    }
                 }
             }
         }

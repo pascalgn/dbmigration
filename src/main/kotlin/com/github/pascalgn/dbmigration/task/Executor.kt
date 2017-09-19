@@ -32,28 +32,6 @@ internal class Executor(private val threads: Int) {
     private val progressFormat = DecimalFormat("0.00")
     private val speedFormat = DecimalFormat("0.0")
 
-    private inline fun execute(threads: Int, crossinline block: () -> Unit) {
-        var errors = false
-        for (i in 1..threads) {
-            executorService.submit {
-                try {
-                    block()
-                } catch (interruptedException: InterruptedException) {
-                    logger.debug("Interrupted!")
-                } catch (throwable: Throwable) {
-                    errors = true
-                    logger.error("Error while executing!", throwable)
-                    executorService.shutdownNow()
-                }
-            }
-        }
-        executorService.shutdown()
-        executorService.awaitTermination(14, TimeUnit.DAYS)
-        if (errors) {
-            throw IllegalStateException("Errors while executing tasks!")
-        }
-    }
-
     fun execute(tasks: List<Task>) {
         logger.debug("Initializing tasks")
 
@@ -110,7 +88,7 @@ internal class Executor(private val threads: Int) {
 
                 val str = StringBuilder()
                 str.append(progressFormat.format(100 * progress)).append("% (")
-                str.append(complete).append("/").append(tasks.size).append(")")
+                str.append(complete + failed).append("/").append(tasks.size).append(")")
 
                 if (executing > 0) {
                     str.append(", ").append(executing).append(" running")
