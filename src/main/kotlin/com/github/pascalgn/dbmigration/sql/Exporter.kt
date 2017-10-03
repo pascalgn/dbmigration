@@ -79,7 +79,9 @@ internal class Exporter(private val table: Table, private val session: Session,
             }
         }
         val columnName = rs.metaData.getColumnName(index)
-        return Column(columnType, columnName)
+        val scale = rs.metaData.getScale(index)
+        val precision = rs.metaData.getPrecision(index)
+        return Column(columnType, columnName, scale, precision)
     }
 
     private fun read(rs: ResultSet, index: Int, column: Column): Any? {

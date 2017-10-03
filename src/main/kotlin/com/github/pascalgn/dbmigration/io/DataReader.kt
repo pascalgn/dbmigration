@@ -14,17 +14,16 @@
  * limitations under the License.
  */
 
-package com.github.pascalgn.dbmigration.config
+package com.github.pascalgn.dbmigration.io
 
-data class Target(val skip: Boolean, val threads: Int, val deleteBeforeImport: Boolean,
-                  val before: Scripts, val after: Scripts, val batchSize: Int,
-                  val jdbc: Jdbc, val resetSequences: String, val roundingMode: RoundingMode)
+import com.github.pascalgn.dbmigration.sql.Column
 
-data class Scripts(val files: List<String>, val continueOnError: Boolean = false)
+internal interface DataReader : AutoCloseable {
+    fun readTableName(): String
 
-/**
- * Specifies what should happen if a number has to be rounded to fit into the target column
- */
-enum class RoundingMode {
-    IGNORE, WARN, FAIL
+    fun readColumns(): Map<Int, Column>
+
+    fun nextRow(): Boolean
+
+    fun readRow(block: (Int, Any?) -> Unit)
 }

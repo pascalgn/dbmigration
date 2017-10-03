@@ -16,14 +16,17 @@
 
 package com.github.pascalgn.dbmigration.sql
 
-import com.github.pascalgn.dbmigration.io.BinaryReader
+import com.github.pascalgn.dbmigration.config.RoundingMode
+import com.github.pascalgn.dbmigration.io.DataReader
 import org.slf4j.LoggerFactory
 import java.io.InputStream
+import java.math.BigDecimal
 import java.sql.Connection
 import java.sql.Types
 
-internal class JdbcImporter(private val reader: BinaryReader, private val session: Session,
-                            private val tableName: String, private val batchSize: Int) : Runnable {
+internal class JdbcImporter(private val reader: DataReader, private val session: Session,
+                            private val tableName: String, private val batchSize: Int = 10000,
+                            private val roundingMode: RoundingMode = RoundingMode.WARN) : Runnable {
     companion object {
         val logger = LoggerFactory.getLogger(JdbcImporter::class.java)!!
     }
@@ -81,13 +84,25 @@ internal class JdbcImporter(private val reader: BinaryReader, private val sessio
                             Types.BLOB, Types.CLOB, Types.VARBINARY -> {
                                 if (value is InputStream) {
                                     statement.setBinaryStream(targetIdx, value, value.available())
-                                } else {
+                                } else if (value == null) {
                                     statement.setBinaryStream(targetIdx, null as InputStream?, 0)
+                                } else {
+                                    throw IllegalStateException("Not a stream: $value")
                                 }
                             }
                             else -> {
                                 if (value is InputStream) {
                                     statement.setBinaryStream(targetIdx, value, value.available())
+                                } else if (value is BigDecimal) {
+                                    val rounded = Utils.round(value, column.scale, column.precision)
+                                    if (roundingMode != RoundingMode.IGNORE && rounded.compareTo(value) != 0) {
+                                        if (roundingMode == RoundingMode.WARN) {
+                                            logger.warn("Precision lost: {} != {}", rounded, value)
+                                        } else if (roundingMode == RoundingMode.FAIL) {
+                                            throw IllegalStateException("Precision lost: $rounded != $value")
+                                        }
+                                    }
+                                    statement.setBigDecimal(targetIdx, rounded)
                                 } else {
                                     statement.setObject(targetIdx, value)
                                 }

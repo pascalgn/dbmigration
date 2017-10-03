@@ -38,7 +38,7 @@ internal class SqlServerImporter(private val reader: BinaryReader, private val s
     private var rows = 0
 
     override fun run() {
-        logger.info("Importing {}...", tableName)
+        logger.debug("Importing {}...", tableName)
 
         reader.readTableName()
 
@@ -160,6 +160,6 @@ internal class SqlServerImporter(private val reader: BinaryReader, private val s
             }
         }
 
-        logger.info("Imported: {} [{} rows]", tableName, rows)
+        logger.debug("Imported: {} [{} rows]", tableName, rows)
     }
 }

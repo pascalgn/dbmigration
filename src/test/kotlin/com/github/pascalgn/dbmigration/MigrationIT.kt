@@ -18,6 +18,7 @@ package com.github.pascalgn.dbmigration
 
 import com.github.pascalgn.dbmigration.config.Context
 import com.github.pascalgn.dbmigration.config.Jdbc
+import com.github.pascalgn.dbmigration.config.RoundingMode
 import com.github.pascalgn.dbmigration.config.Scripts
 import com.github.pascalgn.dbmigration.config.Source
 import com.github.pascalgn.dbmigration.config.Target
@@ -57,7 +58,7 @@ class MigrationIT : AbstractIT() {
 
         val targetJdbc = Jdbc(targetJdbcUrl, "", "", "", false)
         val target = Target(false, 1, true, Scripts(listOf("before.sql")), Scripts(listOf("after.sql")), 10000,
-            targetJdbc, "")
+            targetJdbc, "", RoundingMode.FAIL)
 
         return Context(directory, emptyList(), emptyList(), source, target)
     }

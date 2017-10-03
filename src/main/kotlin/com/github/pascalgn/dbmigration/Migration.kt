@@ -205,29 +205,29 @@ class Migration(val context: Context) : Runnable {
             throw IllegalArgumentException("Not a file: $file")
         }
         logger.info("Executing script: {}", file)
-        session.withConnection { connection ->
-            connection.createStatement().use { statement ->
-                file.readText().split(";").forEach { sql ->
-                    if (sql.isBlank()) {
-                        return@forEach
-                    }
-                    if (logger.isDebugEnabled) {
-                        val plain = sql.replace(Regex("\\s+"), " ").trim()
-                        logger.debug("Executing SQL: {}", plain)
-                    }
-                    try {
+        file.readText().split(";").forEach { sql ->
+            if (sql.isBlank()) {
+                return@forEach
+            }
+            if (logger.isDebugEnabled) {
+                val plain = sql.replace(Regex("\\s+"), " ").trim()
+                logger.debug("Executing SQL: {}", plain)
+            }
+            try {
+                session.withConnection { connection ->
+                    connection.createStatement().use { statement ->
                         statement.execute(sql)
-                    } catch (e: Exception) {
-                        if (continueOnError) {
-                            if (logger.isDebugEnabled) {
-                                logger.debug("Error executing script: {}", filename, e)
-                            } else {
-                                logger.info("Error executing script: {}", filename)
-                            }
-                        } else {
-                            throw e
-                        }
                     }
+                }
+            } catch (e: Exception) {
+                if (continueOnError) {
+                    if (logger.isDebugEnabled) {
+                        logger.debug("Error executing script!", e)
+                    } else {
+                        logger.info("Error executing script: {}", e.message)
+                    }
+                } else {
+                    throw e
                 }
             }
         }

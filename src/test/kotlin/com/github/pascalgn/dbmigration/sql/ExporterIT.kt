@@ -37,8 +37,8 @@ class ExporterIT : AbstractIT() {
         }
 
         assertEquals(1, directory.list().size)
-        val userExpected = openResource("User-v2.bin") { it.readBytes() }
-        val userActual = File(directory, "User.bin").readBytes()
+        val userExpected = openResource("Export-User.bin") { it.readBytes() }
+        val userActual = file.readBytes()
         assertEquals(userExpected.toList(), userActual.toList())
     }
 }

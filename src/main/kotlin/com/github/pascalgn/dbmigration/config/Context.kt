@@ -55,8 +55,9 @@ data class Context(val root: File,
                 properties.getProperty("target.jdbc.schema"),
                 properties.getProperty("target.jdbc.quotes", "true").toBoolean())
             val resetSequences = properties.getProperty("target.resetSequences", "").trim()
+            val roundingMode = RoundingMode.valueOf(properties.getProperty("target.roundingMode", "warn").toUpperCase())
             val target = Target(targetSkip, targetThreads, deleteBeforeImport, before, after, batchSize, targetJdbc,
-                resetSequences)
+                resetSequences, roundingMode)
 
             return Context(root, classpath, drivers, source, target)
         }

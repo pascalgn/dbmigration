@@ -51,8 +51,8 @@ internal class ImportTask(private val context: Context, private val imported: Im
     override fun doExecute() {
         CountingStream(file.inputStream()).use {
             BinaryReader(it).use { reader ->
-                session.withConnection { connection ->
-                    try {
+                try {
+                    session.withConnection { connection ->
                         if (context.target.deleteBeforeImport) {
                             Utils.deleteRows(session, connection, tableName)
                         } else if (!Utils.isEmpty(session, connection, tableName)) {
@@ -60,17 +60,17 @@ internal class ImportTask(private val context: Context, private val imported: Im
                             completed = size
                             return
                         }
-
-                        if (session.isSqlServer()) {
-                            SqlServerImporter(reader, session, tableName).run()
-                        } else {
-                            JdbcImporter(reader, session, tableName, context.target.batchSize).run()
-                        }
-                    } catch (e: InterruptedException) {
-                        throw e
-                    } catch (e: Exception) {
-                        throw IllegalStateException("Error importing $file", e)
                     }
+
+                    if (session.isSqlServer()) {
+                        SqlServerImporter(reader, session, tableName).run()
+                    } else {
+                        JdbcImporter(reader, session, tableName, context.target.batchSize).run()
+                    }
+                } catch (e: InterruptedException) {
+                    throw e
+                } catch (e: Exception) {
+                    throw IllegalStateException("Error importing $file", e)
                 }
             }
         }

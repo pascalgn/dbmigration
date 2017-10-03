@@ -33,6 +33,7 @@ internal class ExportTask(outputDir: File, private val overwrite: Boolean, priva
     }
 
     private val file = File(outputDir, "${table.name}.bin")
+    private var rowsAdded = false
 
     override fun doInitialize() {
         if (file.exists() && !overwrite) {
@@ -54,10 +55,13 @@ internal class ExportTask(outputDir: File, private val overwrite: Boolean, priva
                     Exporter(table, session, writer).run()
                 }
             }
-            // rows could have been deleted while running, still indicate success:
             if (completed < size) {
+                // rows could have been deleted while running, still indicate success:
                 logger.warn("Rows have been deleted while the export was running: {}", table.name)
                 completed = size
+            }
+            if (rowsAdded) {
+                logger.warn("Rows have been added while the export was running: {}", table.name)
             }
         } else {
             logger.warn("File has been created after this task has been initialized: {}", file)
@@ -78,6 +82,8 @@ internal class ExportTask(outputDir: File, private val overwrite: Boolean, priva
             delegate.writeRow(row)
             if (completed < size) {
                 completed++
+            } else {
+                rowsAdded = true
             }
         }
 
@@ -85,6 +91,8 @@ internal class ExportTask(outputDir: File, private val overwrite: Boolean, priva
             delegate.writeRow(block)
             if (completed < size) {
                 completed++
+            } else {
+                rowsAdded = true
             }
         }
 

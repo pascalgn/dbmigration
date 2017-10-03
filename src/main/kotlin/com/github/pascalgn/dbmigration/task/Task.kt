@@ -45,7 +45,7 @@ internal abstract class Task {
             }
         }
 
-    var error: Throwable? = null
+    private var error: Throwable? = null
         @Synchronized get
         private @Synchronized set
 
@@ -93,14 +93,14 @@ internal abstract class Task {
                 try {
                     executing = true
                     doExecute()
+                    if (completed < size) {
+                        throw IllegalStateException("Execution did not complete: $completed < $size")
+                    }
                 } catch (t: Throwable) {
                     error = t
                     throw t
                 } finally {
                     executing = false
-                }
-                if (completed < size) {
-                    throw IllegalStateException("Execution did not complete: $completed < $size")
                 }
             }
         }

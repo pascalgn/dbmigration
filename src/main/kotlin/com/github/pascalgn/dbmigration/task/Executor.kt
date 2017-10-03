@@ -37,6 +37,8 @@ internal class Executor(private val threads: Int) {
 
         tasks.forEach { executorService.submit { logErrors { it.initialize() } } }
 
+        val count = tasks.size
+
         outer@ while (true) {
             val failed = tasks.filter { it.failed }
             if (!failed.isEmpty()) {
@@ -45,8 +47,8 @@ internal class Executor(private val threads: Int) {
             }
 
             val initialized = tasks.filter { it.initialized }.count()
-            logger.info("{}/{} tasks initialized", initialized, tasks.size)
-            if (initialized == tasks.size) {
+            logger.info("{}/{} tasks initialized", initialized, count)
+            if (initialized == count) {
                 break@outer
             }
             Thread.sleep(1000)
@@ -63,12 +65,13 @@ internal class Executor(private val threads: Int) {
         tasks.forEach { executorService.submit { logErrors { it.execute() } } }
 
         outer@ while (true) {
+            val executing = tasks.filter { it.executing }.count()
             val complete = tasks.filter { it.complete }.count()
-            val failed = tasks.filter { it.error != null }.count()
+            val failed = tasks.filter { it.failed }.count()
 
             if (logger.isInfoEnabled) {
+
                 val completed = tasks.map { it.completed }.sum()
-                val executing = tasks.filter { it.executing }.count()
                 val progress = if (size == 0L) 1.0 else completed.toDouble() / size
 
                 if (executing != previous.executing) {
@@ -109,7 +112,7 @@ internal class Executor(private val threads: Int) {
                 logger.info(str.toString())
             }
 
-            if (complete + failed == tasks.size) {
+            if (executing == 0 && complete + failed == count) {
                 break@outer
             }
 
@@ -117,6 +120,7 @@ internal class Executor(private val threads: Int) {
         }
 
         executorService.shutdownNow()
+        executorService.awaitTermination(14, TimeUnit.DAYS)
     }
 
     private data class Info(val time: Long, val executing: Int, val completed: Long)

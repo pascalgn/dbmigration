@@ -30,7 +30,7 @@ import java.text.SimpleDateFormat
 import java.util.TreeMap
 import java.util.zip.GZIPInputStream
 
-internal class BinaryReader(input: InputStream) : AutoCloseable {
+internal class BinaryReader(input: InputStream) : DataReader {
     private val dateFormat = SimpleDateFormat("yyyy-MM-ddZ")
     private val timestampFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ")
 
@@ -50,7 +50,7 @@ internal class BinaryReader(input: InputStream) : AutoCloseable {
     private var version = 0
     private val columns = TreeMap<Int, Column>()
 
-    fun readTableName(): String {
+    override fun readTableName(): String {
         if (version != 0) {
             throw IllegalStateException("Cannot call readTableName() more than once!")
         }
@@ -64,7 +64,7 @@ internal class BinaryReader(input: InputStream) : AutoCloseable {
         return data.readUTF()
     }
 
-    fun readColumns(): Map<Int, Column> {
+    override fun readColumns(): Map<Int, Column> {
         if (version == 0) {
             throw IllegalStateException("Must call readTableName() first!")
         }
@@ -78,7 +78,7 @@ internal class BinaryReader(input: InputStream) : AutoCloseable {
         return columns
     }
 
-    fun nextRow(): Boolean {
+    override fun nextRow(): Boolean {
         val prefix = data.read()
         if (version == 1) {
             when (prefix) {
@@ -94,7 +94,7 @@ internal class BinaryReader(input: InputStream) : AutoCloseable {
         throw IllegalStateException("Unexpected row prefix: $prefix")
     }
 
-    inline fun readRow(block: (Int, Any?) -> Unit) {
+    override fun readRow(block: (Int, Any?) -> Unit) {
         for (idx in 1..columns.size) {
             val prefix = data.read()
             if (prefix == 0) {
