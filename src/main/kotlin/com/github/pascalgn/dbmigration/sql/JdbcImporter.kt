@@ -16,7 +16,6 @@
 
 package com.github.pascalgn.dbmigration.sql
 
-import com.github.pascalgn.dbmigration.config.RoundingMode
 import com.github.pascalgn.dbmigration.io.DataReader
 import org.slf4j.LoggerFactory
 import java.io.InputStream
@@ -25,8 +24,8 @@ import java.sql.Connection
 import java.sql.Types
 
 internal class JdbcImporter(private val reader: DataReader, private val session: Session,
-                            private val tableName: String, private val batchSize: Int = 10000,
-                            private val roundingMode: RoundingMode = RoundingMode.WARN) : Runnable {
+                            private val tableName: String, private val decimalHandler: DecimalHandler,
+                            private val batchSize: Int = 10000) : Runnable {
     companion object {
         val logger = LoggerFactory.getLogger(JdbcImporter::class.java)!!
     }
@@ -43,9 +42,9 @@ internal class JdbcImporter(private val reader: DataReader, private val session:
     private fun importFile(connection: Connection) {
         logger.info("Importing {}...", tableName)
 
-        reader.readTableName()
+        val header = reader.readHeader()
 
-        val sourceColumns = reader.readColumns()
+        val sourceColumns = header.columns
         val targetColumns = Utils.getColumns(connection, session.schema, tableName)
 
         if (targetColumns.isEmpty()) {
@@ -94,15 +93,8 @@ internal class JdbcImporter(private val reader: DataReader, private val session:
                                 if (value is InputStream) {
                                     statement.setBinaryStream(targetIdx, value, value.available())
                                 } else if (value is BigDecimal) {
-                                    val rounded = Utils.round(value, column.scale, column.precision)
-                                    if (roundingMode != RoundingMode.IGNORE && rounded.compareTo(value) != 0) {
-                                        if (roundingMode == RoundingMode.WARN) {
-                                            logger.warn("Precision lost: {} != {}", rounded, value)
-                                        } else if (roundingMode == RoundingMode.FAIL) {
-                                            throw IllegalStateException("Precision lost: $rounded != $value")
-                                        }
-                                    }
-                                    statement.setBigDecimal(targetIdx, rounded)
+                                    val v = decimalHandler.convert(tableName, column, value)
+                                    statement.setBigDecimal(targetIdx, v)
                                 } else {
                                     statement.setObject(targetIdx, value)
                                 }

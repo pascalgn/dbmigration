@@ -18,6 +18,7 @@ package com.github.pascalgn.dbmigration.task
 
 import com.github.pascalgn.dbmigration.config.Context
 import com.github.pascalgn.dbmigration.io.BinaryReader
+import com.github.pascalgn.dbmigration.sql.DecimalHandler
 import com.github.pascalgn.dbmigration.sql.JdbcImporter
 import com.github.pascalgn.dbmigration.sql.Session
 import com.github.pascalgn.dbmigration.sql.SqlServerImporter
@@ -30,7 +31,7 @@ import java.io.InputStream
 
 internal class ImportTask(private val context: Context, private val imported: ImportController,
                           private val tableNames: Map<String, String>, private val file: File,
-                          private val session: Session) : Task() {
+                          private val session: Session, private val decimalHandler: DecimalHandler) : Task() {
     companion object {
         val logger = LoggerFactory.getLogger(ImportTask::class.java)!!
     }
@@ -38,7 +39,7 @@ internal class ImportTask(private val context: Context, private val imported: Im
     private var tableName = ""
 
     override fun doInitialize() {
-        val exportTableName = BinaryReader(file.inputStream()).use { reader -> reader.readTableName() }
+        val exportTableName = BinaryReader(file.inputStream()).use { reader -> reader.readHeader().tableName }
         tableName = tableNames.getOrDefault(exportTableName.toUpperCase(), "")
         if (tableName.isEmpty()) {
             logger.warn("Table {} not found, skipping import!", exportTableName)
@@ -49,11 +50,12 @@ internal class ImportTask(private val context: Context, private val imported: Im
     }
 
     override fun doExecute() {
+        val target = context.target
         CountingStream(file.inputStream()).use {
             BinaryReader(it).use { reader ->
                 try {
                     session.withConnection { connection ->
-                        if (context.target.deleteBeforeImport) {
+                        if (target.deleteBeforeImport) {
                             Utils.deleteRows(session, connection, tableName)
                         } else if (!Utils.isEmpty(session, connection, tableName)) {
                             logger.warn("Table {} not empty, skipping import!", tableName)
@@ -63,9 +65,9 @@ internal class ImportTask(private val context: Context, private val imported: Im
                     }
 
                     if (session.isSqlServer()) {
-                        SqlServerImporter(reader, session, tableName).run()
+                        SqlServerImporter(reader, session, tableName, decimalHandler).run()
                     } else {
-                        JdbcImporter(reader, session, tableName, context.target.batchSize).run()
+                        JdbcImporter(reader, session, tableName, decimalHandler, target.batchSize).run()
                     }
                 } catch (e: InterruptedException) {
                     throw e

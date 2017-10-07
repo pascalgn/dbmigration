@@ -19,9 +19,9 @@ package com.github.pascalgn.dbmigration.io
 import com.github.pascalgn.dbmigration.sql.Column
 
 internal interface DataReader : AutoCloseable {
-    fun readTableName(): String
+    data class Header(val tableName: String, val columns: Map<Int, Column>)
 
-    fun readColumns(): Map<Int, Column>
+    fun readHeader(): Header
 
     fun nextRow(): Boolean
 

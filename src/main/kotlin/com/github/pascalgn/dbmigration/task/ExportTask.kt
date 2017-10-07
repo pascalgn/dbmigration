@@ -19,20 +19,33 @@ package com.github.pascalgn.dbmigration.task
 import com.github.pascalgn.dbmigration.io.BinaryWriter
 import com.github.pascalgn.dbmigration.io.DataWriter
 import com.github.pascalgn.dbmigration.sql.Column
-import com.github.pascalgn.dbmigration.sql.Exporter
+import com.github.pascalgn.dbmigration.sql.JdbcExporter
 import com.github.pascalgn.dbmigration.sql.Session
 import com.github.pascalgn.dbmigration.sql.Table
 import com.github.pascalgn.dbmigration.sql.Utils
+import org.apache.commons.lang.exception.ExceptionUtils
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.io.FileOutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.sql.SQLRecoverableException
+import java.sql.SQLTransientException
 
-internal class ExportTask(outputDir: File, private val overwrite: Boolean, private val table: Table,
-                          private val session: Session) : Task() {
+internal class ExportTask(private val outputDir: File, private val overwrite: Boolean, private val table: Table,
+                          private val session: Session, private val retries: Int = 0,
+                          private val fetchSize: Int = 0) : Task() {
     companion object {
         val logger = LoggerFactory.getLogger(ExportTask::class.java)!!
+        private fun recoverable(e: Exception): Boolean {
+            return ExceptionUtils.indexOfType(e, SQLRecoverableException::class.java) >= 0
+                || ExceptionUtils.indexOfType(e, SQLTransientException::class.java) >= 0
+        }
     }
 
     private val file = File(outputDir, "${table.name}.bin")
+
+    private var start = 0
     private var rowsAdded = false
 
     override fun doInitialize() {
@@ -49,12 +62,43 @@ internal class ExportTask(outputDir: File, private val overwrite: Boolean, priva
     }
 
     override fun doExecute() {
-        if (overwrite || file.createNewFile()) {
-            BinaryWriter(file.outputStream()).use {
-                CountingDataWriter(it).use { writer ->
-                    Exporter(table, session, writer).run()
+        if (overwrite || !file.exists()) {
+            // write to the temporary file, then move to the real file after this export is done.
+            // otherwise it cannot be determined which files were exported successfully in case of an error
+            val tmp = File.createTempFile("tmp-${table.name}-", "", outputDir)
+
+            for (retry in 0..retries) {
+                try {
+                    BinaryWriter(FileOutputStream(tmp, true)).use {
+                        CountingDataWriter(it).use { writer ->
+                            val writeHeader = retry == 0
+                            JdbcExporter(table, session, writer, outputDir, fetchSize, writeHeader, start).run()
+                        }
+                    }
+                    break
+                } catch (e: Exception) {
+                    if (recoverable(e) && retry < retries) {
+                        logger.warn("Recoverable exception during export: {}: {} ({}/{})", table.name,
+                            e.message, retry + 1, retries)
+                        logger.info("Retrying export of {}: starting at row {}", table.name, start + 1)
+                    } else {
+                        if (!tmp.delete()) {
+                            logger.warn("Could not delete temporary file: {}", tmp)
+                        }
+                        if (e is InterruptedException) {
+                            Thread.currentThread().interrupt()
+                        }
+                        throw e
+                    }
                 }
             }
+
+            if (file.createNewFile()) {
+                Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            } else {
+                logger.warn("Cannot move {}, target exists: {}", tmp, file)
+            }
+
             if (completed < size) {
                 // rows could have been deleted while running, still indicate success:
                 logger.warn("Rows have been deleted while the export was running: {}", table.name)
@@ -70,16 +114,17 @@ internal class ExportTask(outputDir: File, private val overwrite: Boolean, priva
     }
 
     private inner class CountingDataWriter(private val delegate: DataWriter) : DataWriter {
-        override fun writeTableName(tableName: String) {
-            delegate.writeTableName(tableName)
+        override fun setHeader(tableName: String, columns: Map<Int, Column>) {
+            delegate.setHeader(tableName, columns)
         }
 
-        override fun writeColumns(columns: Map<Int, Column>) {
-            delegate.writeColumns(columns)
+        override fun writeHeader() {
+            delegate.writeHeader()
         }
 
         override fun writeRow(row: Array<Any?>) {
             delegate.writeRow(row)
+            start++
             if (completed < size) {
                 completed++
             } else {
@@ -89,6 +134,7 @@ internal class ExportTask(outputDir: File, private val overwrite: Boolean, priva
 
         override fun writeRow(block: (Int) -> Any?) {
             delegate.writeRow(block)
+            start++
             if (completed < size) {
                 completed++
             } else {

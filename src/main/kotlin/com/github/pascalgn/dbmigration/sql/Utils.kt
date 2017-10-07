@@ -17,19 +17,12 @@
 package com.github.pascalgn.dbmigration.sql
 
 import org.slf4j.LoggerFactory
-import java.math.BigDecimal
-import java.math.MathContext
-import java.math.RoundingMode
 import java.sql.Connection
 import java.sql.ResultSet
 import java.sql.Statement
 
 internal object Utils {
     private val logger = LoggerFactory.getLogger(Utils::class.java)!!
-
-    fun round(value: BigDecimal, scale: Int, precision: Int): BigDecimal {
-        return value.round(MathContext(precision, RoundingMode.HALF_UP)).setScale(scale, RoundingMode.HALF_UP)
-    }
 
     fun getColumns(connection: Connection, schema: String, tableName: String): Map<Int, Column> {
         val columns = mutableMapOf<Int, Column>()

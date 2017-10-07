@@ -38,8 +38,8 @@ class BinaryWriterTest : AbstractTest() {
 
         val actual = ByteArrayOutputStream().use { output ->
             BinaryWriter(output).use { writer ->
-                writer.writeTableName("User")
-                writer.writeColumns(columns)
+                writer.setHeader("User", columns)
+                writer.writeHeader()
                 writer.writeRow { index ->
                     when (index) {
                         1 -> 1

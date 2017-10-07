@@ -16,33 +16,46 @@
 
 package com.github.pascalgn.dbmigration.sql
 
+import com.github.pascalgn.dbmigration.config.RoundingRule
 import org.junit.Assert
 import org.junit.Test
 import java.math.BigDecimal
+import java.sql.Types
 
-class UtilsTest {
+class DecimalHandlerTest {
     @Test
     fun testRound1a() {
-        Assert.assertEquals(BigDecimal("0.01"), Utils.round(BigDecimal("0.005"), 2, 10))
+        checkEquals(BigDecimal("0.01"), BigDecimal("0.005"), 2, 10)
     }
 
     @Test
     fun testRound1b() {
-        Assert.assertEquals(BigDecimal("12300"), Utils.round(BigDecimal("12345"), 0, 3))
+        checkEquals(BigDecimal("12300"), BigDecimal("12345"), 0, 3)
     }
 
     @Test
     fun testRound1c() {
-        Assert.assertEquals(BigDecimal("12300.00"), Utils.round(BigDecimal("12345"), 2, 3))
+        checkEquals(BigDecimal("12300"), BigDecimal("12345"), 2, 3)
     }
 
     @Test
     fun testRound1d() {
-        Assert.assertEquals(BigDecimal("200"), Utils.round(BigDecimal("150"), 0, 1))
+        checkEquals(BigDecimal("200"), BigDecimal("150"), 0, 1)
     }
 
     @Test
     fun testRound1e() {
-        Assert.assertEquals(BigDecimal("0.00000"), Utils.round(BigDecimal("0"), 5, 0))
+        checkEquals(BigDecimal("0"), BigDecimal("0"), 5, 1)
+    }
+
+    @Test
+    fun testRound1f() {
+        checkEquals(BigDecimal("1.01"), BigDecimal("1.01"), 3, 3)
+    }
+
+    private fun checkEquals(expected: BigDecimal, input: BigDecimal, scale: Int, precision: Int) {
+        val column = Column(Types.NUMERIC, "COLUMN", scale, precision)
+        val converted = DecimalHandler(RoundingRule.WARN).convert("TABLE", column, input)
+        Assert.assertEquals(expected.toPlainString(), converted.toPlainString())
     }
 }

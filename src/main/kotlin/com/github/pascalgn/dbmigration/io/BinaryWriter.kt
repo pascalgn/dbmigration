@@ -24,22 +24,32 @@ import java.math.BigDecimal
 import java.sql.Date
 import java.sql.Timestamp
 import java.sql.Types
+import java.util.TreeMap
 import java.util.zip.GZIPOutputStream
 
 internal open class BinaryWriter(output: OutputStream) : DataWriter {
     private val data = DataOutputStream(GZIPOutputStream(output))
 
-    private val columns = mutableMapOf<Int, Column>()
+    private var tableName = ""
+    private val columns = TreeMap<Int, Column>()
 
-    override fun writeTableName(tableName: String) {
+    override fun setHeader(tableName: String, columns: Map<Int, Column>) {
+        require(tableName.isNotBlank(), { "Invalid table name: $tableName" })
+        require(columns.isNotEmpty(), { "No columns given!" })
+        this.tableName = tableName
+        this.columns.clear()
+        this.columns.putAll(columns)
+    }
+
+    override fun writeHeader() {
+        if (tableName.isEmpty() || columns.isEmpty()) {
+            throw IllegalStateException("No header set!")
+        }
+
         // version:
         data.writeInt(3)
         data.writeUTF(tableName)
-    }
 
-    override fun writeColumns(columns: Map<Int, Column>) {
-        this.columns.clear()
-        this.columns.putAll(columns)
         data.writeInt(columns.size)
         for (idx in 1..columns.size) {
             val column = columns[idx]!!
@@ -53,6 +63,10 @@ internal open class BinaryWriter(output: OutputStream) : DataWriter {
     }
 
     override fun writeRow(block: (Int) -> Any?) {
+        if (tableName.isEmpty() || columns.isEmpty()) {
+            throw IllegalStateException("No header set!")
+        }
+
         data.writeByte(1)
         for (idx in 1..columns.size) {
             val column = columns[idx]!!

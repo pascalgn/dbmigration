@@ -16,5 +16,5 @@
 
 package com.github.pascalgn.dbmigration.config
 
-data class Source(val skip: Boolean, val overwrite: Boolean, val threads: Int,
+data class Source(val skip: Boolean, val overwrite: Boolean, val threads: Int, val retries: Int, val fetchSize: Int,
                   val include: List<String>, val exclude: List<String>, val jdbc: Jdbc)

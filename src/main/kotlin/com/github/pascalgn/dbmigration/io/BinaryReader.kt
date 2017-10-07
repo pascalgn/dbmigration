@@ -50,10 +50,11 @@ internal class BinaryReader(input: InputStream) : DataReader {
     private var version = 0
     private val columns = TreeMap<Int, Column>()
 
-    override fun readTableName(): String {
+    override fun readHeader(): DataReader.Header {
         if (version != 0) {
-            throw IllegalStateException("Cannot call readTableName() more than once!")
+            throw IllegalStateException("Cannot call readHeader() more than once!")
         }
+
         version = data.readInt()
         if (version != 1 && version != 2 && version != 3) {
             throw IllegalStateException("Unexpected version: $version")
@@ -61,13 +62,9 @@ internal class BinaryReader(input: InputStream) : DataReader {
         if (gzip && version < 3) {
             throw IllegalStateException("Unexpected version for gzip content: $version")
         }
-        return data.readUTF()
-    }
 
-    override fun readColumns(): Map<Int, Column> {
-        if (version == 0) {
-            throw IllegalStateException("Must call readTableName() first!")
-        }
+        val tableName = data.readUTF()
+
         columns.clear()
         val columnCount = data.readInt()
         for (idx in 1..columnCount) {
@@ -75,23 +72,24 @@ internal class BinaryReader(input: InputStream) : DataReader {
             val name = data.readUTF()
             columns.put(idx, Column(type, name))
         }
-        return columns
+
+        return DataReader.Header(tableName, columns)
     }
 
     override fun nextRow(): Boolean {
-        val prefix = data.read()
+        val rowPrefix = data.read()
         if (version == 1) {
-            when (prefix) {
+            when (rowPrefix) {
                 1 -> return true
                 0 -> return false
             }
         } else {
-            when (prefix) {
+            when (rowPrefix) {
                 1 -> return true
                 -1 -> return false
             }
         }
-        throw IllegalStateException("Unexpected row prefix: $prefix")
+        throw IllegalStateException("Unexpected row prefix: $rowPrefix")
     }
 
     override fun readRow(block: (Int, Any?) -> Unit) {

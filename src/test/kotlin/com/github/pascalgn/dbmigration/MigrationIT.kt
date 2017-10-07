@@ -18,13 +18,13 @@ package com.github.pascalgn.dbmigration
 
 import com.github.pascalgn.dbmigration.config.Context
 import com.github.pascalgn.dbmigration.config.Jdbc
-import com.github.pascalgn.dbmigration.config.RoundingMode
+import com.github.pascalgn.dbmigration.config.RoundingRule
 import com.github.pascalgn.dbmigration.config.Scripts
 import com.github.pascalgn.dbmigration.config.Source
 import com.github.pascalgn.dbmigration.config.Target
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
@@ -51,14 +51,14 @@ class MigrationIT : AbstractIT() {
 
     private fun createContext(): Context {
         val sourceJdbc = Jdbc(sourceJdbcUrl, "", "", "", false)
-        val source = Source(false, false, 1, emptyList(), listOf("USERGROUP"), sourceJdbc)
+        val source = Source(false, false, 1, 0, 0, emptyList(), listOf("USERGROUP"), sourceJdbc)
 
         copyToDirectory("before.sql")
         copyToDirectory("after.sql")
 
         val targetJdbc = Jdbc(targetJdbcUrl, "", "", "", false)
         val target = Target(false, 1, true, Scripts(listOf("before.sql")), Scripts(listOf("after.sql")), 10000,
-            targetJdbc, "", RoundingMode.FAIL)
+            targetJdbc, "", RoundingRule.FAIL)
 
         return Context(directory, emptyList(), emptyList(), source, target)
     }

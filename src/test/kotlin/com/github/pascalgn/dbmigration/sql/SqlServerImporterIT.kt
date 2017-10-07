@@ -47,7 +47,7 @@ class SqlServerImporterIT : AbstractIT() {
 
             openResource("User-v2.bin") { input ->
                 BinaryReader(input).use { reader ->
-                    SqlServerImporter(reader, session, "User").run()
+                    SqlServerImporter(reader, session, "User", DecimalHandler()).run()
                 }
             }
 

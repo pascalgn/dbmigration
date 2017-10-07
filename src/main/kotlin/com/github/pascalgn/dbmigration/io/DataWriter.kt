@@ -19,9 +19,9 @@ package com.github.pascalgn.dbmigration.io
 import com.github.pascalgn.dbmigration.sql.Column
 
 internal interface DataWriter : AutoCloseable {
-    fun writeTableName(tableName: String)
+    fun setHeader(tableName: String, columns: Map<Int, Column>)
 
-    fun writeColumns(columns: Map<Int, Column>)
+    fun writeHeader()
 
     fun writeRow(row: Array<Any?>)
 

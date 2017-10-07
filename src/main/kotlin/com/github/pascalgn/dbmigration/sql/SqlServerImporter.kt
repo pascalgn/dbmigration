@@ -23,28 +23,23 @@ import com.microsoft.sqlserver.jdbc.SQLServerConnection
 import org.slf4j.LoggerFactory
 import java.io.InputStream
 import java.math.BigDecimal
-import java.math.MathContext
-import java.math.RoundingMode
 import java.sql.Types
 
 internal class SqlServerImporter(private val reader: BinaryReader, private val session: Session,
-                                 private val tableName: String) : Runnable {
+                                 private val tableName: String, private val decimalHandler: DecimalHandler) : Runnable {
     companion object {
         private val logger = LoggerFactory.getLogger(SqlServerImporter::class.java)!!
     }
-
-    private data class ColumnInfo(val precision: Int, val scale: Int)
 
     private var rows = 0
 
     override fun run() {
         logger.debug("Importing {}...", tableName)
 
-        reader.readTableName()
+        val header = reader.readHeader()
+        val sourceColumns = header.columns
 
-        val sourceColumns = reader.readColumns()
-
-        val columnInfo = mutableMapOf<Int, ColumnInfo>()
+        val columnInfo = mutableMapOf<Int, Column>()
         rows = 0
 
         class Record : ISQLServerBulkRecord {
@@ -58,11 +53,11 @@ internal class SqlServerImporter(private val reader: BinaryReader, private val s
                 if (reader.nextRow()) {
                     reader.readRow { index, value ->
                         if (value is BigDecimal) {
-                            val precision = columnInfo[index]?.precision
-                            if (precision == null) {
-                                row[index - 1] = value
+                            if (index in columnInfo) {
+                                row[index - 1] = decimalHandler.convert(tableName, columnInfo[index]!!, value)
                             } else {
-                                row[index - 1] = value.round(MathContext(precision, RoundingMode.HALF_UP))
+                                // no entry in columnInfo, this means the value will not be used anyway!
+                                row[index - 1] = null
                             }
                         } else if (value is InputStream) {
                             val type = sourceColumns[index]!!.type
@@ -130,11 +125,13 @@ internal class SqlServerImporter(private val reader: BinaryReader, private val s
                 // we don't want any rows, only the metadata!
                 statement.executeQuery("SELECT * FROM ${session.tableName(tableName)} WHERE 1=0").use { rs ->
                     for (index in 1..rs.metaData.columnCount) {
-                        val precision = rs.metaData.getPrecision(index)
+                        val type = rs.metaData.getColumnType(index)
+                        val name = rs.metaData.getColumnName(index)
                         val scale = rs.metaData.getScale(index)
+                        val precision = rs.metaData.getPrecision(index)
                         for ((sourceIndex, targetIndex) in mapping) {
                             if (index == targetIndex) {
-                                columnInfo[sourceIndex] = ColumnInfo(precision, scale)
+                                columnInfo[sourceIndex] = Column(type, name, scale, precision)
                                 break
                             }
                         }

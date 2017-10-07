@@ -23,16 +23,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.io.File
 
-class ExporterIT : AbstractIT() {
+class JdbcExporterIT : AbstractIT() {
     @Test
     fun runExport() {
-        val jdbcUrl = "jdbc:h2:mem:test;INIT=RUNSCRIPT FROM 'classpath:$PKG/runExport.sql'"
+        val jdbcUrl = "jdbc:h2:mem:runExport;INIT=RUNSCRIPT FROM 'classpath:$PKG/runExport.sql'"
         val jdbc = Jdbc(jdbcUrl, "", "", "", false)
         val file = File(directory, "User.bin")
 
         Session(jdbc).use {
             BinaryWriter(file.outputStream()).use { writer ->
-                Exporter(Table("User", 1L), it, writer).run()
+                JdbcExporter(Table("User", 1L), it, writer, directory).run()
             }
         }
 

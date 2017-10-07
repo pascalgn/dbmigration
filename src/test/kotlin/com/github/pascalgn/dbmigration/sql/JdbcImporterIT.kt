@@ -18,7 +18,7 @@ package com.github.pascalgn.dbmigration.sql
 
 import com.github.pascalgn.dbmigration.AbstractIT
 import com.github.pascalgn.dbmigration.config.Jdbc
-import com.github.pascalgn.dbmigration.config.RoundingMode
+import com.github.pascalgn.dbmigration.config.RoundingRule
 import com.github.pascalgn.dbmigration.io.BinaryReader
 import com.github.pascalgn.dbmigration.io.DataReader
 import org.junit.Assert.assertEquals
@@ -30,18 +30,18 @@ import java.math.BigDecimal
 class JdbcImporterIT : AbstractIT() {
     @Test
     fun runImport1() {
-        val jdbcUrl = "jdbc:h2:mem:test;DB_CLOSE_DELAY=10;INIT=RUNSCRIPT FROM 'classpath:$PKG/runImport-1.sql'"
+        val jdbcUrl = "jdbc:h2:mem:runImport1;DB_CLOSE_DELAY=10;INIT=RUNSCRIPT FROM 'classpath:$PKG/runImport-1.sql'"
         val jdbc = Jdbc(jdbcUrl, "", "", "", false)
 
         openResource("User-v2.bin") { input ->
             BinaryReader(input).use { reader ->
                 Session(jdbc).use { session ->
-                    JdbcImporter(reader, session, "USER").run()
+                    JdbcImporter(reader, session, "USER", DecimalHandler()).run()
                 }
             }
         }
 
-        select("jdbc:h2:mem:test", "SELECT * FROM USER") { rs ->
+        select("jdbc:h2:mem:runImport1", "SELECT * FROM USER") { rs ->
             assertTrue(rs.next())
             assertEquals(1, rs.getInt(1))
             assertEquals("user1", rs.getString(2))
@@ -60,7 +60,7 @@ class JdbcImporterIT : AbstractIT() {
         val reader = DummyReader("PRICE", columns, rows)
 
         Session(jdbc).use { session ->
-            JdbcImporter(reader, session, "PRICE", 0, RoundingMode.FAIL).run()
+            JdbcImporter(reader, session, "PRICE", DecimalHandler()).run()
         }
     }
 
@@ -75,7 +75,7 @@ class JdbcImporterIT : AbstractIT() {
         val reader = DummyReader("PRICE", columns, rows)
 
         Session(jdbc).use { session ->
-            JdbcImporter(reader, session, "PRICE").run()
+            JdbcImporter(reader, session, "PRICE", DecimalHandler(RoundingRule.IGNORE)).run()
         }
 
         select("jdbc:h2:mem:runImport2b", "SELECT * FROM Price") { rs ->
@@ -91,12 +91,8 @@ class JdbcImporterIT : AbstractIT() {
                               rows: List<Map<Int, Any?>>) : DataReader {
         private val iterator = rows.iterator()
 
-        override fun readTableName(): String {
-            return tableName
-        }
-
-        override fun readColumns(): Map<Int, Column> {
-            return columns
+        override fun readHeader(): DataReader.Header {
+            return DataReader.Header(tableName, columns)
         }
 
         override fun nextRow(): Boolean {

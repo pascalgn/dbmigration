@@ -18,13 +18,13 @@ package com.github.pascalgn.dbmigration.config
 
 data class Target(val skip: Boolean, val threads: Int, val deleteBeforeImport: Boolean,
                   val before: Scripts, val after: Scripts, val batchSize: Int,
-                  val jdbc: Jdbc, val resetSequences: String, val roundingMode: RoundingMode)
+                  val jdbc: Jdbc, val resetSequences: String, val roundingRule: RoundingRule)
 
 data class Scripts(val files: List<String>, val continueOnError: Boolean = false)
 
 /**
  * Specifies what should happen if a number has to be rounded to fit into the target column
  */
-enum class RoundingMode {
+enum class RoundingRule {
     IGNORE, WARN, FAIL
 }

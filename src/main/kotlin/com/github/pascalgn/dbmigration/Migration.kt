@@ -19,6 +19,7 @@ package com.github.pascalgn.dbmigration
 import com.github.pascalgn.dbmigration.config.Context
 import com.github.pascalgn.dbmigration.config.Scripts
 import com.github.pascalgn.dbmigration.io.CsvReader
+import com.github.pascalgn.dbmigration.sql.DecimalHandler
 import com.github.pascalgn.dbmigration.sql.SequenceReset
 import com.github.pascalgn.dbmigration.sql.Session
 import com.github.pascalgn.dbmigration.sql.Table
@@ -93,6 +94,8 @@ class Migration(val context: Context) : Runnable {
     }
 
     private fun exportData(outputDir: File) {
+        val source = context.source
+
         val tables = getTables()
 
         if (tables.isEmpty()) {
@@ -100,8 +103,7 @@ class Migration(val context: Context) : Runnable {
         }
 
         tables.removeIf {
-            (context.source.include.isNotEmpty() && !context.source.include.contains(it.name))
-                || (context.source.exclude.contains(it.name))
+            (source.include.isNotEmpty() && !source.include.contains(it.name)) || (source.exclude.contains(it.name))
         }
 
         if (tables.isEmpty()) {
@@ -110,9 +112,11 @@ class Migration(val context: Context) : Runnable {
 
         logger.info("Exporting {} tables...", tables.size)
 
-        Session(context.source.jdbc).use { session ->
-            val tasks = tables.map { ExportTask(outputDir, context.source.overwrite, it, session) }
-            Executor(context.source.threads).execute(tasks)
+        Session(source.jdbc).use { session ->
+            val tasks = tables.map {
+                ExportTask(outputDir, source.overwrite, it, session, source.retries, source.fetchSize)
+            }
+            Executor(source.threads).execute(tasks)
         }
     }
 
@@ -176,8 +180,12 @@ class Migration(val context: Context) : Runnable {
 
             logger.info("Importing {} files...", files.size)
 
-            val tasks = files.map { ImportTask(context, imported, tableNames, it, session) }
-            Executor(context.target.threads).execute(tasks)
+            val rounded = File(context.root, "rounded.csv")
+            rounded.bufferedWriter().use { writer ->
+                val decimalHandler = DecimalHandler(context.target.roundingRule, writer)
+                val tasks = files.map { ImportTask(context, imported, tableNames, it, session, decimalHandler) }
+                Executor(context.target.threads).execute(tasks)
+            }
         }
 
         executeScripts(session, context.target.after)

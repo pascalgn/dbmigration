@@ -17,11 +17,14 @@
 package com.github.pascalgn.dbmigration.io
 
 import com.github.pascalgn.dbmigration.AbstractTest
+import com.github.pascalgn.dbmigration.sql.Column
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.sql.Date
 import java.sql.Timestamp
@@ -39,19 +42,55 @@ class BinaryReaderTest : AbstractTest() {
     }
 
     @Test
-    fun readV3() {
+    fun readV3a() {
         openResource("User-v3.bin") { assertRead3(it) }
+    }
+
+    @Test
+    fun readV3b_writtenInTwoSteps() {
+        val columns = mutableMapOf<Int, Column>()
+        columns[1] = Column(Types.INTEGER, "ID")
+        columns[2] = Column(Types.VARCHAR, "NAME")
+        columns[3] = Column(Types.DATE, "DATE")
+        columns[4] = Column(Types.TIMESTAMP, "TS")
+
+        val row = Array<Any?>(4, { null })
+        row[0] = 1
+        row[1] = "user1"
+        row[2] = Date(999999)
+        row[3] = Timestamp(999999)
+
+        val data = ByteArrayOutputStream().use { output ->
+            BinaryWriter(output).use {
+                it.setHeader("User", columns)
+                it.writeHeader()
+            }
+            BinaryWriter(output).use {
+                it.setHeader("User", columns)
+                it.writeRow(row)
+            }
+            BinaryWriter(output).use {
+                it.setHeader("User", columns)
+                it.writeRow(row)
+            }
+            output.toByteArray()
+        }
+
+        ByteArrayInputStream(data).use { assertRead3(it, 2) }
     }
 
     private fun assertRead12(inputStream: InputStream) {
         val reader = BinaryReader(inputStream)
-        assertEquals("User", reader.readTableName())
-        val columns = reader.readColumns()
+        val header = reader.readHeader()
+        assertEquals("User", header.tableName)
+
+        val columns = header.columns
         assertEquals(2, columns.size)
         assertEquals(Types.INTEGER, columns[1]!!.type)
         assertEquals("ID", columns[1]!!.name)
         assertEquals(Types.VARCHAR, columns[2]!!.type)
         assertEquals("NAME", columns[2]!!.name)
+
         assertTrue(reader.nextRow())
         reader.readRow { index, value ->
             when (index) {
@@ -63,11 +102,12 @@ class BinaryReaderTest : AbstractTest() {
         assertFalse(reader.nextRow())
     }
 
-    private fun assertRead3(inputStream: InputStream) {
+    private fun assertRead3(inputStream: InputStream, rows: Int = 1) {
         val reader = BinaryReader(inputStream)
-        assertEquals("User", reader.readTableName())
+        val header = reader.readHeader()
+        assertEquals("User", header.tableName)
 
-        val columns = reader.readColumns()
+        val columns = header.columns
         assertEquals(4, columns.size)
         assertEquals(Types.INTEGER, columns[1]!!.type)
         assertEquals("ID", columns[1]!!.name)
@@ -78,14 +118,16 @@ class BinaryReaderTest : AbstractTest() {
         assertEquals(Types.TIMESTAMP, columns[4]!!.type)
         assertEquals("TS", columns[4]!!.name)
 
-        assertTrue(reader.nextRow())
-        reader.readRow { index, value ->
-            when (index) {
-                1 -> assertEquals(1, value)
-                2 -> assertEquals("user1", value)
-                3 -> assertEquals(Date(999999), value)
-                4 -> assertEquals(Timestamp(999999), value)
-                else -> fail("Unexpected index: $index")
+        for (row in 1..rows) {
+            assertTrue(reader.nextRow())
+            reader.readRow { index, value ->
+                when (index) {
+                    1 -> assertEquals(1, value)
+                    2 -> assertEquals("user1", value)
+                    3 -> assertEquals(Date(999999), value)
+                    4 -> assertEquals(Timestamp(999999), value)
+                    else -> fail("Unexpected index: $index")
+                }
             }
         }
         assertFalse(reader.nextRow())

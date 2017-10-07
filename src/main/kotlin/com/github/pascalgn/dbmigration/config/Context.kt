@@ -32,6 +32,8 @@ data class Context(val root: File,
             val sourceSkip = properties.getProperty("source.skip", "false").toBoolean()
             val sourceOverwrite = properties.getProperty("source.overwrite", "false").toBoolean()
             val sourceThreads = properties.getProperty("source.threads", DEFAULT_THREADS).toInt()
+            val sourceRetries = properties.getProperty("source.retries", "5").toInt()
+            val sourceFetchSize = properties.getProperty("source.fetchSize", "0").toInt()
             val sourceInclude = properties.getProperty("source.include", "").split(",").filter { it.isNotBlank() }
             val sourceExclude = properties.getProperty("source.exclude", "").split(",").filter { it.isNotBlank() }
             val sourceJdbc = Jdbc(properties.getProperty("source.jdbc.url"),
@@ -39,7 +41,8 @@ data class Context(val root: File,
                 properties.getProperty("source.jdbc.password"),
                 properties.getProperty("source.jdbc.schema"),
                 properties.getProperty("source.jdbc.quotes", "true").toBoolean())
-            val source = Source(sourceSkip, sourceOverwrite, sourceThreads, sourceInclude, sourceExclude, sourceJdbc)
+            val source = Source(sourceSkip, sourceOverwrite, sourceThreads, sourceRetries, sourceFetchSize,
+                sourceInclude, sourceExclude, sourceJdbc)
 
             val targetSkip = properties.getProperty("target.skip", "false").toBoolean()
             val targetThreads = properties.getProperty("target.threads", DEFAULT_THREADS).toInt()
@@ -55,9 +58,9 @@ data class Context(val root: File,
                 properties.getProperty("target.jdbc.schema"),
                 properties.getProperty("target.jdbc.quotes", "true").toBoolean())
             val resetSequences = properties.getProperty("target.resetSequences", "").trim()
-            val roundingMode = RoundingMode.valueOf(properties.getProperty("target.roundingMode", "warn").toUpperCase())
+            val roundingRule = RoundingRule.valueOf(properties.getProperty("target.roundingRule", "warn").toUpperCase())
             val target = Target(targetSkip, targetThreads, deleteBeforeImport, before, after, batchSize, targetJdbc,
-                resetSequences, roundingMode)
+                resetSequences, roundingRule)
 
             return Context(root, classpath, drivers, source, target)
         }

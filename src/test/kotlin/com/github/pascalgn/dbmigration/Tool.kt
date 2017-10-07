@@ -30,10 +30,10 @@ object Tool {
         file.inputStream().use { input ->
             val reader = BinaryReader(input)
 
-            val tableName = reader.readTableName()
-            println("; Table: $tableName")
+            val header = reader.readHeader()
+            println("; Table: ${header.tableName}")
 
-            val columns = reader.readColumns()
+            val columns = header.columns
             for ((type, name) in columns.values) {
                 print("$name[$type];")
             }
