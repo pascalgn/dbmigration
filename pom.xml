@@ -60,6 +60,7 @@
 
         <kotlin.version>1.1.4-2</kotlin.version>
         <slf4j.version>1.7.21</slf4j.version>
+        <logback.version>1.2.3</logback.version>
 
         <maven-surefire-plugin.version>2.20</maven-surefire-plugin.version>
         <maven-failsafe-plugin.version>2.20</maven-failsafe-plugin.version>
@@ -225,6 +226,7 @@
                         <exclude>.*</exclude>
                         <exclude>LICENSE</exclude>
                         <exclude>src/build/**</exclude>
+                        <exclude>src/main/resources/logback.xml</exclude>
                         <exclude>src/main/resources/**/*.properties</exclude>
                         <exclude>src/test/resources/**</exclude>
                         <exclude>src/test/docker/*</exclude>
@@ -323,14 +325,14 @@
             <version>${slf4j.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
-            <version>${slf4j.version}</version>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-core</artifactId>
+            <version>${logback.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>log4j-over-slf4j</artifactId>
-            <version>${slf4j.version}</version>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>${logback.version}</version>
         </dependency>
 
         <dependency>
@@ -341,12 +343,16 @@
         <dependency>
             <groupId>com.microsoft.sqlserver</groupId>
             <artifactId>mssql-jdbc</artifactId>
-            <version>6.1.0.jre8</version>
+            <version>6.2.0.jre8</version>
             <optional>true</optional>
             <exclusions>
                 <exclusion>
                     <groupId>com.microsoft.azure</groupId>
                     <artifactId>azure-keyvault</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.microsoft.azure</groupId>
+                    <artifactId>adal4j</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>

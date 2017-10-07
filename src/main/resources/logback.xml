@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="Console" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %white([%thread]) %highlight(%level) %white(%logger{1}) %msg%n</pattern>
+        </encoder>
+    </appender>
+    <logger name="com.zaxxer.hikari" level="warn" />
+    <root level="${LOG_LEVEL:-info}">
+        <appender-ref ref="Console"/>
+    </root>
+</configuration>
