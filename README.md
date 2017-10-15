@@ -6,7 +6,7 @@ A tool to export data from one SQL database and import it into another.
 
     mkdir /tmp/db
     vim /tmp/db/migration.properties
-    java com.github.pascalgn.dbmigration.Main /tmp/db
+    java com.github.pascalgn.dbmigration.Main migrate /tmp/db
 
 ### Configuration
 
@@ -43,7 +43,8 @@ This tool is also available as a [docker image](https://hub.docker.com/r/pascalg
 
     $ mkdir /tmp/db
     $ vim /tmp/db/migration.properties
-    $ docker run -v /tmp/db:/home/dbmigration/data pascalgn/dbmigration
+    $ docker run -v /tmp/db:/home/dbmigration/data pascalgn/dbmigration \
+          migrate /home/dbmigration/data
 
 You can use the `LOG_LEVEL` environment variable to change the log output:
 
@@ -77,6 +78,8 @@ The exported files are gzip compressed and written in the following format:
     <scale> ::= int
     ; dates are represented as milliseconds since January 1, 1970
     <date> ::= long
+
+Note that the exported files may consist of multiple [gzip member](https://tools.ietf.org/html/rfc1952#page-5) entries.
 
 ## License
 
