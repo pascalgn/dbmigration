@@ -33,7 +33,10 @@ internal class SequenceReset(private val reader: CsvReader, private val session:
 
         while (true) {
             val line = reader.readLine() ?: break
-            if (line.size != 3) {
+            if (line.isEmpty()) {
+                logger.trace("Skipped empty line!")
+                continue
+            } else if (line.size != 3) {
                 throw IllegalStateException("Expected 3 columns: $line")
             }
             val columnRef = ColumnRef(line[0], line[1])

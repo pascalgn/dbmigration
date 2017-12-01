@@ -16,4 +16,4 @@
 
 package com.github.pascalgn.dbmigration.sql
 
-internal data class Table(val name: String, val rows: Long)
+internal data class Table(val name: String, val rows: Long, val columns: Map<Int, Column>)

@@ -16,4 +16,5 @@
 
 package com.github.pascalgn.dbmigration.sql
 
-internal data class Column(val type: Int, val name: String, val scale: Int = 0, val precision: Int = 0)
+internal data class Column(val type: Int, val name: String, val scale: Int = 0, val precision: Int = 0,
+                           val nullable: Boolean = true)

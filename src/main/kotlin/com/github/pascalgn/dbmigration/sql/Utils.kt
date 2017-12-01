@@ -18,24 +18,42 @@ package com.github.pascalgn.dbmigration.sql
 
 import org.slf4j.LoggerFactory
 import java.sql.Connection
+import java.sql.DatabaseMetaData
 import java.sql.ResultSet
 import java.sql.Statement
+import java.sql.Types
+import java.util.TreeMap
 
 internal object Utils {
     private val logger = LoggerFactory.getLogger(Utils::class.java)!!
 
     fun getColumns(connection: Connection, schema: String, tableName: String): Map<Int, Column> {
-        val columns = mutableMapOf<Int, Column>()
+        val columns = TreeMap<Int, Column>()
         var idx = 0
         connection.metaData.getColumns(null, schema, tableName, "%").use { rs ->
             while (rs.next()) {
-                val type = rs.getInt("DATA_TYPE")
+                var type = rs.getInt("DATA_TYPE")
+                if (type == Types.TIMESTAMP) {
+                    val typeName = rs.getString("TYPE_NAME")
+                    if (typeName.startsWith("DATE")) {
+                        type = Types.DATE
+                    }
+                }
                 val name = rs.getString("COLUMN_NAME")
                 val scale = rs.getInt("DECIMAL_DIGITS")
                 val precision = rs.getInt("COLUMN_SIZE")
-                columns.put(++idx, Column(type, name, scale, precision))
+                val nullable = when (rs.getInt("NULLABLE")) {
+                    DatabaseMetaData.columnNullable -> true
+                    DatabaseMetaData.columnNoNulls -> false
+                    else -> throw IllegalStateException("Cannot read nullable property: $tableName.$name")
+                }
+                columns.put(++idx, Column(type, name, scale, precision, nullable))
             }
         }
+        if (columns.isEmpty()) {
+            throw IllegalStateException("Table with 0 columns: $tableName")
+        }
+        logger.trace("Columns for {}: {}", tableName, columns)
         return columns
     }
 

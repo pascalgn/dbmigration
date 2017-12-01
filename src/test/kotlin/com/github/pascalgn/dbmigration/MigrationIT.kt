@@ -45,19 +45,20 @@ class MigrationIT : AbstractIT() {
             assertTrue(rs.next())
             assertEquals("user-1", rs.getString(1))
             assertEquals(1, rs.getInt(2))
+            assertEquals("", rs.getString(3))
             assertFalse(rs.next())
         }
     }
 
     private fun createContext(): Context {
         val sourceJdbc = Jdbc(sourceJdbcUrl, "", "", "", false)
-        val source = Source(false, false, 1, 0, 0, emptyList(), listOf("USERGROUP"), sourceJdbc)
+        val source = Source(false, 0, false, 1, 0, 0, emptyList(), listOf("USERGROUP", "USER.PASSWORD"), sourceJdbc)
 
         copyToDirectory("before.sql")
         copyToDirectory("after.sql")
 
         val targetJdbc = Jdbc(targetJdbcUrl, "", "", "", false)
-        val target = Target(false, 1, true, Scripts(listOf("before.sql")), Scripts(listOf("after.sql")), 10000,
+        val target = Target(false, 0, 1, true, Scripts(listOf("before.sql")), Scripts(listOf("after.sql")), 10000,
             targetJdbc, "", RoundingRule.FAIL)
 
         return Context(directory, emptyList(), emptyList(), source, target)

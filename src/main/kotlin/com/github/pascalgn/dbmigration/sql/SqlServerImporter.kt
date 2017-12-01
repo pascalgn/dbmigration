@@ -96,6 +96,7 @@ internal class SqlServerImporter(private val reader: BinaryReader, private val s
                 return when (type) {
                     Types.CLOB -> Types.VARCHAR
                     Types.BLOB -> Types.VARBINARY
+                    Types.FLOAT -> Types.DECIMAL
                     else -> type
                 }
             }

@@ -19,6 +19,7 @@ package com.github.pascalgn.dbmigration.task
 import com.github.pascalgn.dbmigration.io.BinaryWriter
 import com.github.pascalgn.dbmigration.io.DataWriter
 import com.github.pascalgn.dbmigration.sql.Column
+import com.github.pascalgn.dbmigration.sql.Filter
 import com.github.pascalgn.dbmigration.sql.JdbcExporter
 import com.github.pascalgn.dbmigration.sql.Session
 import com.github.pascalgn.dbmigration.sql.Table
@@ -32,8 +33,8 @@ import java.nio.file.StandardCopyOption
 import java.sql.SQLRecoverableException
 import java.sql.SQLTransientException
 
-internal class ExportTask(private val outputDir: File, private val overwrite: Boolean, private val table: Table,
-                          private val session: Session, private val retries: Int = 0,
+internal class ExportTask(private val outputDir: File, private val overwrite: Boolean, private val filter: Filter,
+                          private val table: Table, private val session: Session, private val retries: Int = 0,
                           private val fetchSize: Int = 0) : Task() {
     companion object {
         val logger = LoggerFactory.getLogger(ExportTask::class.java)!!
@@ -72,7 +73,7 @@ internal class ExportTask(private val outputDir: File, private val overwrite: Bo
                     BinaryWriter(FileOutputStream(tmp, true)).use {
                         CountingDataWriter(it).use { writer ->
                             val writeHeader = retry == 0
-                            JdbcExporter(table, session, writer, outputDir, fetchSize, writeHeader, start).run()
+                            JdbcExporter(table, session, filter, writer, outputDir, fetchSize, writeHeader, start).run()
                         }
                     }
                     break

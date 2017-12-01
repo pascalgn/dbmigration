@@ -20,6 +20,7 @@ import com.github.pascalgn.dbmigration.config.Context
 import com.github.pascalgn.dbmigration.config.Scripts
 import com.github.pascalgn.dbmigration.io.CsvReader
 import com.github.pascalgn.dbmigration.sql.DecimalHandler
+import com.github.pascalgn.dbmigration.sql.Filter
 import com.github.pascalgn.dbmigration.sql.SequenceReset
 import com.github.pascalgn.dbmigration.sql.Session
 import com.github.pascalgn.dbmigration.sql.Table
@@ -96,15 +97,16 @@ class Migration(val context: Context) : Runnable {
     private fun exportData(outputDir: File) {
         val source = context.source
 
-        val tables = getTables()
+        val tables = getTables(source.include)
 
         if (tables.isEmpty()) {
             throw IllegalStateException("No tables found!")
         }
 
-        tables.removeIf {
-            (source.include.isNotEmpty() && !source.include.contains(it.name)) || (source.exclude.contains(it.name))
-        }
+        val filter = Filter(source.include, source.exclude)
+        filter.validate(tables)
+
+        tables.removeIf { filter.excludeTable(it.name) }
 
         if (tables.isEmpty()) {
             throw IllegalStateException("All tables excluded!")
@@ -112,15 +114,20 @@ class Migration(val context: Context) : Runnable {
 
         logger.info("Exporting {} tables...", tables.size)
 
+        if (source.wait > 0) {
+            logger.info("Waiting {} seconds before exporting...", source.wait)
+            Thread.sleep(source.wait * 1000L)
+        }
+
         Session(source.jdbc).use { session ->
             val tasks = tables.map {
-                ExportTask(outputDir, source.overwrite, it, session, source.retries, source.fetchSize)
+                ExportTask(outputDir, source.overwrite, filter, it, session, source.retries, source.fetchSize)
             }
             Executor(source.threads).execute(tasks)
         }
     }
 
-    private fun getTables(): Queue<Table> {
+    private fun getTables(include: Collection<String> = emptyList()): Queue<Table> {
         logger.info("Reading tables...")
         Session(context.source.jdbc).use { session ->
             val tables = ConcurrentLinkedQueue<Table>()
@@ -132,7 +139,9 @@ class Migration(val context: Context) : Runnable {
                         tableNames.add(rs.getString("TABLE_NAME"))
                     }
                 }
-                tableNames.mapTo(tables) { Table(it, Utils.rowCount(session, connection, it)) }
+                tableNames.filter { include.isEmpty() || include.contains(it) }.mapTo(tables) {
+                    Table(it, Utils.rowCount(session, connection, it), Utils.getColumns(connection, session.schema, it))
+                }
             }
             return tables
         }
@@ -142,8 +151,6 @@ class Migration(val context: Context) : Runnable {
         if (context.target.deleteBeforeImport) {
             logger.warn("Deleting existing rows before importing")
         }
-
-        executeScripts(session, context.target.before)
 
         val files = ConcurrentLinkedQueue<File>()
         inputDir.listFiles().filter { it.isFile && it.name.endsWith(".bin") }.forEach { files.add(it) }
@@ -160,6 +167,18 @@ class Migration(val context: Context) : Runnable {
         imported.imported().forEach { logger.info("Already imported: {}", it) }
         files.removeIf { imported[it] }
 
+        if (files.isEmpty()) {
+            logger.info("All files already imported!")
+            return
+        }
+
+        if (context.target.wait > 0) {
+            logger.info("Waiting {} seconds before importing...", context.target.wait)
+            Thread.sleep(context.target.wait * 1000L)
+        }
+
+        executeScripts(session, context.target.before)
+
         val tableNames = mutableMapOf<String, String>()
         session.withConnection { connection ->
             connection.metaData.getTables(null, session.schema, "%", null).use { rs ->
@@ -170,22 +189,17 @@ class Migration(val context: Context) : Runnable {
             }
         }
 
-        if (files.isEmpty()) {
-            logger.info("All files already imported!")
-            return
-        } else {
-            if (tableNames.isEmpty()) {
-                throw IllegalStateException("No tables found for schema: ${session.schema}")
-            }
+        if (tableNames.isEmpty()) {
+            throw IllegalStateException("No tables found for schema: ${session.schema}")
+        }
 
-            logger.info("Importing {} files...", files.size)
+        logger.info("Importing {} files...", files.size)
 
-            val rounded = File(context.root, "rounded.csv")
-            rounded.bufferedWriter().use { writer ->
-                val decimalHandler = DecimalHandler(context.target.roundingRule, writer)
-                val tasks = files.map { ImportTask(context, imported, tableNames, it, session, decimalHandler) }
-                Executor(context.target.threads).execute(tasks)
-            }
+        val rounded = File(context.root, "rounded.csv")
+        rounded.bufferedWriter().use { writer ->
+            val decimalHandler = DecimalHandler(context.target.roundingRule, writer)
+            val tasks = files.map { ImportTask(context, imported, tableNames, it, session, decimalHandler) }
+            Executor(context.target.threads).execute(tasks)
         }
 
         executeScripts(session, context.target.after)

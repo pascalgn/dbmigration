@@ -45,7 +45,7 @@ internal class Session(private val jdbc: Jdbc) : AutoCloseable {
         }
     }
 
-    private fun quote(str: String): String {
+    fun quote(str: String): String {
         if (jdbc.quotes) {
             return if (isSqlServer()) "[$str]" else "\"$str\""
         } else {

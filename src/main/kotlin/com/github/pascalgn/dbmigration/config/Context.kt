@@ -30,6 +30,7 @@ data class Context(val root: File,
             val drivers = properties.getProperty("drivers", "").split(",").filter { it.isNotBlank() }
 
             val sourceSkip = properties.getProperty("source.skip", "false").toBoolean()
+            val sourceWait = properties.getProperty("source.wait", "5").toInt()
             val sourceOverwrite = properties.getProperty("source.overwrite", "false").toBoolean()
             val sourceThreads = properties.getProperty("source.threads", DEFAULT_THREADS).toInt()
             val sourceRetries = properties.getProperty("source.retries", "5").toInt()
@@ -41,10 +42,11 @@ data class Context(val root: File,
                 properties.getProperty("source.jdbc.password"),
                 properties.getProperty("source.jdbc.schema"),
                 properties.getProperty("source.jdbc.quotes", "true").toBoolean())
-            val source = Source(sourceSkip, sourceOverwrite, sourceThreads, sourceRetries, sourceFetchSize,
+            val source = Source(sourceSkip, sourceWait, sourceOverwrite, sourceThreads, sourceRetries, sourceFetchSize,
                 sourceInclude, sourceExclude, sourceJdbc)
 
             val targetSkip = properties.getProperty("target.skip", "false").toBoolean()
+            val targetWait = properties.getProperty("target.wait", "5").toInt()
             val targetThreads = properties.getProperty("target.threads", DEFAULT_THREADS).toInt()
             val deleteBeforeImport = properties.getProperty("target.deleteBeforeImport", "false").toBoolean()
             val before = Scripts(properties.getProperty("target.before", "").split(",").filter { it.isNotBlank() },
@@ -59,8 +61,8 @@ data class Context(val root: File,
                 properties.getProperty("target.jdbc.quotes", "true").toBoolean())
             val resetSequences = properties.getProperty("target.resetSequences", "").trim()
             val roundingRule = RoundingRule.valueOf(properties.getProperty("target.roundingRule", "warn").toUpperCase())
-            val target = Target(targetSkip, targetThreads, deleteBeforeImport, before, after, batchSize, targetJdbc,
-                resetSequences, roundingRule)
+            val target = Target(targetSkip, targetWait, targetThreads, deleteBeforeImport, before, after, batchSize,
+                targetJdbc, resetSequences, roundingRule)
 
             return Context(root, classpath, drivers, source, target)
         }

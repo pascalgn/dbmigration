@@ -16,7 +16,7 @@
 
 package com.github.pascalgn.dbmigration.config
 
-data class Target(val skip: Boolean, val threads: Int, val deleteBeforeImport: Boolean,
+data class Target(val skip: Boolean, val wait: Int, val threads: Int, val deleteBeforeImport: Boolean,
                   val before: Scripts, val after: Scripts, val batchSize: Int,
                   val jdbc: Jdbc, val resetSequences: String, val roundingRule: RoundingRule)
 

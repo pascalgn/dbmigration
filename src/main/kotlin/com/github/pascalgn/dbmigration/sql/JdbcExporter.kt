@@ -25,13 +25,15 @@ import java.io.InputStream
 import java.sql.Blob
 import java.sql.Clob
 import java.sql.Connection
+import java.sql.Date
 import java.sql.ResultSet
+import java.sql.Timestamp
 import java.sql.Types
 
 /**
  * @param start The first row to export from the result set, default is 0
  */
-internal class JdbcExporter(private val table: Table, private val session: Session,
+internal class JdbcExporter(private val table: Table, private val session: Session, private val filter: Filter,
                             private val writer: DataWriter, private val tempDir: File,
                             private val fetchSize: Int = 0, private val writeHeader: Boolean = true,
                             private val start: Int = 0) : Runnable {
@@ -40,6 +42,8 @@ internal class JdbcExporter(private val table: Table, private val session: Sessi
 
         // Streams bigger than this will be written to temporary files instead of being kept in memory
         val MAX_BUFFER_SIZE = 100 * 1024 * 1024
+
+        val EMPTY = ByteArray(0)
     }
 
     init {
@@ -49,8 +53,14 @@ internal class JdbcExporter(private val table: Table, private val session: Sessi
     }
 
     override fun run() {
-        session.withConnection { connection ->
-            exportTable(connection, table)
+        try {
+            session.withConnection { connection ->
+                exportTable(connection, table)
+            }
+        } catch (e: InterruptedException) {
+            throw e
+        } catch (e: Exception) {
+            throw IllegalStateException("Export failed: ${table.name}", e)
         }
     }
 
@@ -61,19 +71,23 @@ internal class JdbcExporter(private val table: Table, private val session: Sessi
             0 -> connection.createStatement()
             else -> connection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)
         }
+        val excluded = table.columns.keys.filter {
+            val column = table.columns[it]!!
+            filter.excludeColumn(table.name, column.name)
+        }.toSet()
+        val columnNames = table.columns.map { (idx, column) ->
+            if (excluded.contains(idx)) {
+                "NULL AS ${session.quote(column.name)}"
+            } else {
+                session.quote(column.name)
+            }
+        }.joinToString()
         stmt.use { statement ->
             statement.fetchSize = fetchSize
-            statement.executeQuery("SELECT * FROM ${session.tableName(tableName)}").use { rs ->
-                val columnCount = rs.metaData.columnCount
-                val columns = (1..columnCount).associateBy({ it }, { getColumn(rs, it) })
-
-                if (columnCount == 0) {
-                    throw IllegalStateException("Table with 0 columns: $tableName")
-                }
-
-                logger.trace("Columns for {}: {}", tableName, columns)
-
-                writer.setHeader(tableName, columns)
+            val sql = "SELECT $columnNames FROM ${session.tableName(tableName)}"
+            logger.debug("Executing statement: $sql")
+            statement.executeQuery(sql).use { rs ->
+                writer.setHeader(tableName, table.columns)
                 if (writeHeader) {
                     writer.writeHeader()
                 }
@@ -84,13 +98,31 @@ internal class JdbcExporter(private val table: Table, private val session: Sessi
                     }
                 }
 
-                val row = Array<Any?>(columnCount, { null })
+                val row = Array<Any?>(table.columns.size, { null })
 
                 rs.fetchSize = fetchSize
                 while (rs.next()) {
                     logger.trace("Next row:")
-                    for (idx in 1..columnCount) {
-                        val value = read(rs, idx, columns[idx]!!)
+                    for ((idx, column) in table.columns) {
+                        val value = if (excluded.contains(idx)) {
+                            if (column.nullable) {
+                                null
+                            } else {
+                                when (column.type) {
+                                    Types.NUMERIC, Types.DECIMAL, Types.FLOAT -> 0
+                                    Types.SMALLINT, Types.TINYINT, Types.INTEGER -> 0
+                                    Types.BIGINT -> 0
+                                    Types.VARCHAR -> ""
+                                    Types.BLOB -> ByteArrayInputStream(EMPTY)
+                                    Types.CLOB -> ByteArrayInputStream(EMPTY)
+                                    Types.DATE -> Date(0)
+                                    Types.TIMESTAMP -> Timestamp(0)
+                                    else -> throw IllegalArgumentException("Unknown column type: $column")
+                                }
+                            }
+                        } else {
+                            read(rs, idx, table.columns[idx]!!)
+                        }
                         logger.trace("{}: {}: {}", idx, value?.javaClass?.simpleName, value)
                         row[idx - 1] = value
                     }
