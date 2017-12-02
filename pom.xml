@@ -58,12 +58,12 @@
 
         <skipITs>false</skipITs>
 
-        <kotlin.version>1.1.4-2</kotlin.version>
+        <kotlin.version>1.2.0</kotlin.version>
         <slf4j.version>1.7.21</slf4j.version>
         <logback.version>1.2.3</logback.version>
 
         <maven-surefire-plugin.version>2.20</maven-surefire-plugin.version>
-        <maven-failsafe-plugin.version>2.20</maven-failsafe-plugin.version>
+        <maven-failsafe-plugin.version>2.20.1</maven-failsafe-plugin.version>
         <maven-checkstyle-plugin.version>2.17</maven-checkstyle-plugin.version>
         <maven-antrun-plugin.version>1.7</maven-antrun-plugin.version>
         <docker-maven-plugin.version>0.21.0</docker-maven-plugin.version>
@@ -129,53 +129,6 @@
                 </configuration>
             </plugin>
             <plugin>
-                <groupId>io.fabric8</groupId>
-                <artifactId>docker-maven-plugin</artifactId>
-                <version>${docker-maven-plugin.version}</version>
-                <executions>
-                    <execution>
-                        <id>build-images</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>build</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>start-container</id>
-                        <goals>
-                            <goal>start</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>stop-container</id>
-                        <goals>
-                            <goal>stop</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <skip>${skipITs}</skip>
-                    <images>
-                        <image>
-                            <name>dbmigration/sql-server:latest</name>
-                            <build>
-                                <dockerFileDir>${project.basedir}/src/test/docker</dockerFileDir>
-                            </build>
-                            <run>
-                                <portPropertyFile>${project.build.directory}/ports.properties</portPropertyFile>
-                                <ports>
-                                    <port>+sqlserver.host:sqlserver.port:1433</port>
-                                </ports>
-                                <wait>
-                                    <log>Recovery is complete</log>
-                                    <time>30000</time>
-                                </wait>
-                            </run>
-                        </image>
-                    </images>
-                </configuration>
-            </plugin>
-            <plugin>
                 <artifactId>maven-antrun-plugin</artifactId>
                 <version>${maven-antrun-plugin.version}</version>
                 <executions>
@@ -234,67 +187,149 @@
                 </configuration>
             </plugin>
             <plugin>
-                <groupId>com.github.wvengen</groupId>
-                <artifactId>proguard-maven-plugin</artifactId>
-                <version>2.0.14</version>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.7.9</version>
                 <executions>
                     <execution>
-                        <phase>package</phase>
+                        <id>prepare-agent</id>
                         <goals>
-                            <goal>proguard</goal>
+                            <goal>prepare-agent</goal>
                         </goals>
                     </execution>
                 </executions>
-                <configuration>
-                    <obfuscate>false</obfuscate>
-                    <proguardInclude>src/build/proguard.conf</proguardInclude>
-                    <injar>${project.build.finalName}.jar</injar>
-                    <outjar>${project.build.finalName}-dist.jar</outjar>
-                    <outputDirectory>${project.build.directory}</outputDirectory>
-                    <includeDependencyInjar>true</includeDependencyInjar>
-                    <outFilter>!META-INF/*.txt</outFilter>
-                    <libs>
-                        <lib>${java.home}/lib/rt.jar</lib>
-                    </libs>
-                    <exclusions>
-                        <exclusion>
-                            <groupId>com.microsoft.sqlserver</groupId>
-                            <artifactId>mssql-jdbc</artifactId>
-                        </exclusion>
-                    </exclusions>
-                </configuration>
             </plugin>
             <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>1.6.0</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <workingDirectory>${project.basedir}</workingDirectory>
-                    <executable>docker</executable>
-                    <arguments>
-                        <argument>build</argument>
-                        <argument>--build-arg</argument>
-                        <argument>PROJECT_VERSION=${project.version}</argument>
-                        <argument>-t</argument>
-                        <argument>pascalgn/dbmigration:${project.version}</argument>
-                        <argument>-t</argument>
-                        <argument>pascalgn/dbmigration:latest</argument>
-                        <argument>-f</argument>
-                        <argument>src/build/Dockerfile</argument>
-                        <argument>.</argument>
-                    </arguments>
-                </configuration>
+                <groupId>org.eluder.coveralls</groupId>
+                <artifactId>coveralls-maven-plugin</artifactId>
+                <version>4.3.0</version>
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.github.wvengen</groupId>
+                        <artifactId>proguard-maven-plugin</artifactId>
+                        <version>2.0.14</version>
+                        <executions>
+                            <execution>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>proguard</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <obfuscate>false</obfuscate>
+                            <proguardInclude>src/build/proguard.conf</proguardInclude>
+                            <injar>${project.build.finalName}.jar</injar>
+                            <outjar>${project.build.finalName}-dist.jar</outjar>
+                            <outputDirectory>${project.build.directory}</outputDirectory>
+                            <includeDependencyInjar>true</includeDependencyInjar>
+                            <outFilter>!META-INF/*.txt</outFilter>
+                            <libs>
+                                <lib>${java.home}/lib/rt.jar</lib>
+                            </libs>
+                            <exclusions>
+                                <exclusion>
+                                    <groupId>com.microsoft.sqlserver</groupId>
+                                    <artifactId>mssql-jdbc</artifactId>
+                                </exclusion>
+                            </exclusions>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>docker</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>io.fabric8</groupId>
+                        <artifactId>docker-maven-plugin</artifactId>
+                        <version>${docker-maven-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>build-images</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>build</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>start-container</id>
+                                <goals>
+                                    <goal>start</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>stop-container</id>
+                                <goals>
+                                    <goal>stop</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <skip>${skipITs}</skip>
+                            <images>
+                                <image>
+                                    <name>dbmigration/sql-server:latest</name>
+                                    <build>
+                                        <dockerFileDir>${project.basedir}/src/test/docker</dockerFileDir>
+                                    </build>
+                                    <run>
+                                        <portPropertyFile>${project.build.directory}/ports.properties</portPropertyFile>
+                                        <ports>
+                                            <port>+sqlserver.host:sqlserver.port:1433</port>
+                                        </ports>
+                                        <wait>
+                                            <log>Recovery is complete</log>
+                                            <time>30000</time>
+                                        </wait>
+                                    </run>
+                                </image>
+                            </images>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>1.6.0</version>
+                        <executions>
+                            <execution>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <workingDirectory>${project.basedir}</workingDirectory>
+                            <executable>docker</executable>
+                            <arguments>
+                                <argument>build</argument>
+                                <argument>--build-arg</argument>
+                                <argument>PROJECT_VERSION=${project.version}</argument>
+                                <argument>-t</argument>
+                                <argument>pascalgn/dbmigration:${project.version}</argument>
+                                <argument>-t</argument>
+                                <argument>pascalgn/dbmigration:latest</argument>
+                                <argument>-f</argument>
+                                <argument>src/build/Dockerfile</argument>
+                                <argument>.</argument>
+                            </arguments>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
     <dependencies>
         <dependency>

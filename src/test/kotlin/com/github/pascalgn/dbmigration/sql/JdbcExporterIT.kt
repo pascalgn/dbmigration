@@ -31,7 +31,7 @@ class JdbcExporterIT : AbstractIT() {
         val file = File(directory, "User.bin")
 
         Session(jdbc).use { session ->
-            val columns = session.withConnection { Utils.getColumns(it, session.schema, "User") }
+            val columns = session.withConnection { Utils.getColumns(it, session.schema, "USER") }
             BinaryWriter(file.outputStream()).use { writer ->
                 JdbcExporter(Table("User", 1L, columns), session, Filter(), writer, directory).run()
             }

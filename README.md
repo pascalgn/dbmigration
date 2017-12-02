@@ -1,5 +1,8 @@
 # Database migration tool
 
+[![Build Status](https://img.shields.io/travis/pascalgn/dbmigration.svg?style=flat-square)](https://travis-ci.org/pascalgn/dbmigration)
+[![License](https://img.shields.io/github/license/pascalgn/dbmigration.svg?style=flat-square)](LICENSE)
+
 A tool to export data from one SQL database and import it into another.
 
 ## Usage
